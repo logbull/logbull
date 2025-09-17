@@ -1,0 +1,74 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+For DI files use implicit fields declaration styles (espesially
+for controllers, services, repositories, use cases, etc., not simple
+data structures).
+
+So, instead of:
+
+var orderController = &OrderController{
+    orderService:   orderService,
+    botUserService: bot_users.GetBotUserService(),
+    botService:     bots.GetBotService(),
+    userService:    users.GetUserService(),
+}
+
+Use:
+
+var orderController = &OrderController{
+    orderService,
+    bot_users.GetBotUserService(),
+    bots.GetBotService(),
+    users.GetUserService(),
+}
+
+This is needed to avoid forgetting to update DI style
+when we add new dependency.
+
+---
+
+Please force such usage if file look like this (see some
+services\controllers\repos definitions and getters):
+
+var orderBackgroundService = &OrderBackgroundService{
+	orderService:           orderService,
+	orderPaymentRepository: orderPaymentRepository,
+	botService:             bots.GetBotService(),
+	paymentSettingsService: payment_settings.GetPaymentSettingsService(),
+
+	orderSubscriptionListeners: []OrderSubscriptionListener{},
+}
+
+var orderController = &OrderController{
+	orderService:   orderService,
+	botUserService: bot_users.GetBotUserService(),
+	botService:     bots.GetBotService(),
+	userService:    users.GetUserService(),
+}
+
+func GetUniquePaymentRepository() *repositories.UniquePaymentRepository {
+	return uniquePaymentRepository
+}
+
+func GetOrderPaymentRepository() *repositories.OrderPaymentRepository {
+	return orderPaymentRepository
+}
+
+func GetOrderService() *OrderService {
+	return orderService
+}
+
+func GetOrderController() *OrderController {
+	return orderController
+}
+
+func GetOrderBackgroundService() *OrderBackgroundService {
+	return orderBackgroundService
+}
+
+func GetOrderRepository() *repositories.OrderRepository {
+	return orderRepository
+}

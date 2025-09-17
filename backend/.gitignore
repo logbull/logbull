@@ -1,0 +1,16 @@
+main
+.env
+docker-compose.yml
+pgdata
+main.exe
+swagger/
+swagger/*
+swagger/docs.go
+swagger/swagger.json
+swagger/swagger.yaml
+ui/build/*
+temp/
+victorialogs-data/
+valkey-data/
+cmd.exe
+opensearch-data/
