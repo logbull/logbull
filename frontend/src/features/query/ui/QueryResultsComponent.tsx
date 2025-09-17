@@ -5,6 +5,51 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { type LogItem } from '../../../entity/query';
 
+const STORAGE_KEY = 'logbull-message-length';
+
+/**
+ * Get default message length based on screen width
+ */
+const getDefaultMessageLength = (): number => {
+  if (typeof window === 'undefined') {
+    return 135; // Default for SSR
+  }
+
+  const screenWidth = window.innerWidth;
+
+  if (screenWidth <= 1440) {
+    return 135;
+  } else if (screenWidth <= 1920) {
+    return 100;
+  } else {
+    // 2K and above
+    return 145;
+  }
+};
+
+/**
+ * Get stored message length from localStorage, fallback to screen-based default
+ */
+const getStoredMessageLength = (): number => {
+  if (typeof window === 'undefined') {
+    return getDefaultMessageLength();
+  }
+
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored !== null) {
+      const parsed = parseInt(stored, 10);
+      if (!isNaN(parsed) && parsed >= 10 && parsed <= 1000) {
+        return parsed;
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to read message length from localStorage:', error);
+  }
+
+  return getDefaultMessageLength();
+};
+
 interface Props {
   queryResults: LogItem[];
   totalResults: number;
@@ -35,6 +80,7 @@ export const QueryResultsComponent = ({
 }: Props): React.JSX.Element | null => {
   // States
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [messageLength, setMessageLength] = useState<number>(getStoredMessageLength());
 
   // Refs
   const isLoadingMore = useRef(false);
@@ -121,7 +167,7 @@ export const QueryResultsComponent = ({
     setExpandedRows(newExpandedRows);
   };
 
-  const renderCustomFields = (log: LogItem, isExpanded: boolean) => {
+  const renderCustomFields = (log: LogItem, isExpanded: boolean, maxLength: number) => {
     const fieldKeys = Object.keys(log.fields || {});
 
     if (fieldKeys.length === 0) {
@@ -133,7 +179,7 @@ export const QueryResultsComponent = ({
 
     const { text: displayText, isTruncated } = isExpanded
       ? { text: fieldsString, isTruncated: false }
-      : truncateText(fieldsString, 200);
+      : truncateText(fieldsString, maxLength);
 
     if (fieldsString.length === 0) {
       return <span className="text-xs text-gray-400">-</span>;
@@ -162,7 +208,7 @@ export const QueryResultsComponent = ({
             <span className="font-mono text-gray-600">{displayText}</span>
             {isTruncated && (
               <span className="ml-1 cursor-pointer text-emerald-600 hover:text-emerald-700">
-                (click to expand)
+                (expand)
               </span>
             )}
           </div>
@@ -188,6 +234,17 @@ export const QueryResultsComponent = ({
     return () => scrollContainer.removeEventListener('scroll', handleScroll);
   }, [handleScroll]);
 
+  // Save message length to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(STORAGE_KEY, messageLength.toString());
+      } catch (error) {
+        console.warn('Failed to save message length to localStorage:', error);
+      }
+    }
+  }, [messageLength]);
+
   if (!hasExecuted) {
     return null;
   }
@@ -198,6 +255,24 @@ export const QueryResultsComponent = ({
         <div className="flex items-center justify-between">
           <h3 className="text-base font-medium text-gray-900">Query Results</h3>
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <label htmlFor="messageLength" className="text-xs font-normal text-gray-500">
+                Message length:
+              </label>
+              <input
+                id="messageLength"
+                type="number"
+                value={messageLength}
+                onChange={(e) =>
+                  setMessageLength(
+                    Math.max(10, parseInt(e.target.value) || getStoredMessageLength()),
+                  )
+                }
+                className="w-16 rounded border border-gray-300 px-1 py-0.5 text-xs focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 focus:outline-none"
+                min="10"
+                max="1000"
+              />
+            </div>
             <span className="text-xs font-normal text-gray-500">
               {isExecuting && queryResults.length === 0 ? (
                 <Spin indicator={<LoadingOutlined spin />} size="small" />
@@ -226,6 +301,7 @@ export const QueryResultsComponent = ({
               <div style={{ width: '150px' }}>Timestamp</div>
               <div style={{ width: '85px' }}>Level</div>
               <div className="flex-1">Message</div>
+              <div style={{ width: '10px' }} />
               <div className="flex-1">Fields</div>
             </div>
 
@@ -234,7 +310,7 @@ export const QueryResultsComponent = ({
               const isExpanded = expandedRows.has(log.id);
               const { text: displayMessage, isTruncated: messageIsTruncated } = isExpanded
                 ? { text: log.message, isTruncated: false }
-                : truncateText(log.message, 210);
+                : truncateText(log.message, messageLength);
 
               return (
                 <div
@@ -253,12 +329,11 @@ export const QueryResultsComponent = ({
                   >
                     {displayMessage}
                     {messageIsTruncated && !isExpanded && (
-                      <span className="ml-1 text-emerald-600 hover:text-emerald-700">
-                        (click to expand)
-                      </span>
+                      <span className="ml-1 text-emerald-600 hover:text-emerald-700">(expand)</span>
                     )}
                   </div>
-                  <div className="flex-1">{renderCustomFields(log, isExpanded)}</div>
+                  <div style={{ width: '10px' }} />
+                  <div className="flex-1">{renderCustomFields(log, isExpanded, messageLength)}</div>
                 </div>
               );
             })}
