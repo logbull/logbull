@@ -133,7 +133,7 @@ export const QueryResultsComponent = ({
 
     const { text: displayText, isTruncated } = isExpanded
       ? { text: fieldsString, isTruncated: false }
-      : truncateText(fieldsString, 500);
+      : truncateText(fieldsString, 200);
 
     if (fieldsString.length === 0) {
       return <span className="text-xs text-gray-400">-</span>;
@@ -234,7 +234,7 @@ export const QueryResultsComponent = ({
               const isExpanded = expandedRows.has(log.id);
               const { text: displayMessage, isTruncated: messageIsTruncated } = isExpanded
                 ? { text: log.message, isTruncated: false }
-                : truncateText(log.message, 500);
+                : truncateText(log.message, 210);
 
               return (
                 <div

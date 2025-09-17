@@ -1,5 +1,5 @@
-import { PlayCircleOutlined } from '@ant-design/icons';
-import { App, Button, Divider, Switch } from 'antd';
+import { LoadingOutlined, PlayCircleOutlined } from '@ant-design/icons';
+import { App, Button, Divider, Spin, Switch } from 'antd';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
@@ -68,6 +68,10 @@ export const QueryComponentComponent = ({ projectId, contentHeight }: Props): Re
 
   // Refs
   const timeRangeRef = useRef<() => TimeRange | null>(null);
+  const timeRangeHelpersRef = useRef<{
+    isUntilNow: () => boolean;
+    refreshRange: () => void;
+  } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const queryBuilderRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -252,6 +256,27 @@ export const QueryComponentComponent = ({ projectId, contentHeight }: Props): Re
     executeQuery(true);
   };
 
+  const handleExecuteOrRefresh = async () => {
+    if (hasSearched) {
+      // If we've already searched, check if we can refresh the time range
+      const helpers = timeRangeHelpersRef.current;
+      if (helpers?.isUntilNow()) {
+        // Refresh the time range to update "now" and then execute query
+        helpers.refreshRange();
+        // Reset hasSearched to false so the new query execution will be treated as fresh
+        setHasSearched(false);
+        // Execute after a small delay to ensure the range has been updated
+        setTimeout(() => executeQuery(false), 50);
+      } else {
+        // For custom ranges, just re-execute with the same range
+        executeQuery(false);
+      }
+    } else {
+      // First time execution
+      executeQuery(false);
+    }
+  };
+
   // useEffect hooks
   useEffect(() => {
     loadQueryableFields();
@@ -277,6 +302,9 @@ export const QueryComponentComponent = ({ projectId, contentHeight }: Props): Re
             }}
             onGetCurrentRange={(getCurrentRange: () => TimeRange | null) => {
               timeRangeRef.current = getCurrentRange;
+            }}
+            onGetRangeHelpers={(helpers) => {
+              timeRangeHelpersRef.current = helpers;
             }}
           />
 
@@ -333,16 +361,22 @@ export const QueryComponentComponent = ({ projectId, contentHeight }: Props): Re
 
           {/* Execution Controls */}
           <div className="flex items-center justify-between">
-            {!hasSearched && (
+            {isExecuting ? (
+              <Spin indicator={<LoadingOutlined spin />} />
+            ) : (
               <Button
                 type="primary"
                 icon={<PlayCircleOutlined />}
-                onClick={() => executeQuery(false)}
-                loading={isExecuting}
+                onClick={handleExecuteOrRefresh}
                 size="large"
-                className="ml-auto border-emerald-600 bg-emerald-600 hover:border-emerald-700 hover:bg-emerald-700"
+                ghost={hasSearched}
+                className={`ml-auto ${
+                  hasSearched
+                    ? 'border-emerald-600 text-emerald-600 hover:border-emerald-700 hover:text-emerald-700'
+                    : 'border-emerald-600 bg-emerald-600 hover:border-emerald-700 hover:bg-emerald-700'
+                }`}
               >
-                Execute Query
+                {hasSearched ? 'Refresh Query' : 'Execute Query'}
               </Button>
             )}
           </div>

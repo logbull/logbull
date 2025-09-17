@@ -22,7 +22,7 @@ func (c *DowndetectController) RegisterRoutes(router *gin.RouterGroup) {
 // @Produce json
 // @Success 200
 // @Failure 500
-// @Router /downdetect/api [get]
+// @Router /downdetect/is-available [get]
 func (c *DowndetectController) IsAvailable(ctx *gin.Context) {
 	err := c.service.IsDbAvailable()
 	if err != nil {

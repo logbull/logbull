@@ -488,6 +488,9 @@ func (repository *LogCoreRepository) GetProjectLogStats(projectID uuid.UUID) (*P
 		if oldestTime, err := time.Parse(time.RFC3339Nano, statsSearchResponse.Aggregations.OldestLog.ValueAsString); err == nil {
 			stats.OldestLogTime = oldestTime.UTC()
 		}
+	} else if statsSearchResponse.Aggregations.OldestLog.Value != 0 {
+		// Fallback to parsing Unix timestamp in milliseconds from Value field
+		stats.OldestLogTime = time.UnixMilli(int64(statsSearchResponse.Aggregations.OldestLog.Value)).UTC()
 	}
 
 	// Parse newest timestamp if available
@@ -495,6 +498,9 @@ func (repository *LogCoreRepository) GetProjectLogStats(projectID uuid.UUID) (*P
 		if newestTime, err := time.Parse(time.RFC3339Nano, statsSearchResponse.Aggregations.NewestLog.ValueAsString); err == nil {
 			stats.NewestLogTime = newestTime.UTC()
 		}
+	} else if statsSearchResponse.Aggregations.NewestLog.Value != 0 {
+		// Fallback to parsing Unix timestamp in milliseconds from Value field
+		stats.NewestLogTime = time.UnixMilli(int64(statsSearchResponse.Aggregations.NewestLog.Value)).UTC()
 	}
 
 	return stats, nil

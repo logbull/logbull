@@ -110,11 +110,13 @@ const presets: TimeRangePreset[] = [
 interface Props {
   onChange: (range: TimeRange | null) => void;
   onGetCurrentRange?: (getCurrentRange: () => TimeRange | null) => void;
+  onGetRangeHelpers?: (helpers: { isUntilNow: () => boolean; refreshRange: () => void }) => void;
 }
 
 export const TimeRangePickerComponent = ({
   onChange,
   onGetCurrentRange,
+  onGetRangeHelpers,
 }: Props): React.JSX.Element => {
   // States
   const [selectedPreset, setSelectedPreset] = useState<string>('24h');
@@ -128,6 +130,22 @@ export const TimeRangePickerComponent = ({
 
     const preset = presets.find((p) => p.value === selectedPreset);
     return preset ? preset.getRange() : null;
+  };
+
+  const isUntilNow = (): boolean => {
+    // Only presets (not custom) can be "until now"
+    return selectedPreset !== 'custom';
+  };
+
+  const refreshRange = (): void => {
+    if (selectedPreset !== 'custom') {
+      // For presets, recalculate the range (which will update "now")
+      const preset = presets.find((p) => p.value === selectedPreset);
+      if (preset) {
+        const range = preset.getRange();
+        onChange(range);
+      }
+    }
   };
 
   const handlePresetChange = (presetValue: string) => {
@@ -170,6 +188,15 @@ export const TimeRangePickerComponent = ({
       onGetCurrentRange(getCurrentRange);
     }
   }, [selectedPreset, customRange, onGetCurrentRange]);
+
+  useEffect(() => {
+    if (onGetRangeHelpers) {
+      onGetRangeHelpers({
+        isUntilNow,
+        refreshRange,
+      });
+    }
+  }, [selectedPreset, customRange, onGetRangeHelpers]);
 
   return (
     <div className="space-y-3">
