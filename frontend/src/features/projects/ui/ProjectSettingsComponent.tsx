@@ -623,9 +623,11 @@ export function ProjectSettingsComponent({ projectResponse, user, contentHeight 
                         value={formProject.logsPerSecondLimit}
                         onChange={(value) => handleFieldChange('logsPerSecondLimit', value || 0)}
                         disabled={!canEdit}
+                        formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                        parser={(value) => value?.replace(/\$\s?|(,*)/g, '') as unknown as number}
                         min={0}
                         max={100000}
-                        className="w-full"
+                        style={{ width: '150px' }}
                       />
                       <div className="mt-1 text-xs text-gray-500">
                         Maximum logs that can be ingested per second
@@ -638,9 +640,11 @@ export function ProjectSettingsComponent({ projectResponse, user, contentHeight 
                         value={formProject.maxLogSizeKb}
                         onChange={(value) => handleFieldChange('maxLogSizeKb', value || 0)}
                         disabled={!canEdit}
+                        formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                        parser={(value) => value?.replace(/\$\s?|(,*)/g, '') as unknown as number}
                         min={1}
                         max={1024}
-                        className="w-full"
+                        style={{ width: '150px' }}
                       />
                       <div className="mt-1 text-xs text-gray-500">
                         Maximum size allowed for a single log entry
@@ -657,7 +661,7 @@ export function ProjectSettingsComponent({ projectResponse, user, contentHeight 
                         max={1000000000000000}
                         formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                         parser={(value) => value?.replace(/\$\s?|(,*)/g, '') as unknown as number}
-                        className="w-full"
+                        style={{ width: '150px' }}
                       />
                       <div className="mt-1 text-xs text-gray-500">
                         Maximum total number of logs that can be stored
@@ -671,10 +675,12 @@ export function ProjectSettingsComponent({ projectResponse, user, contentHeight 
                       <InputNumber
                         value={formProject.maxLogsSizeMb}
                         onChange={(value) => handleFieldChange('maxLogsSizeMb', value || 0)}
+                        formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                        parser={(value) => value?.replace(/\$\s?|(,*)/g, '') as unknown as number}
                         disabled={!canEdit}
                         min={0}
                         max={1000000000000000}
-                        className="w-full"
+                        style={{ width: '150px' }}
                       />
                       <div className="mt-1 text-xs text-gray-500">
                         Maximum total storage size for all logs
@@ -686,10 +692,12 @@ export function ProjectSettingsComponent({ projectResponse, user, contentHeight 
                       <InputNumber
                         value={formProject.maxLogsLifeDays}
                         onChange={(value) => handleFieldChange('maxLogsLifeDays', value || 0)}
+                        formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                        parser={(value) => value?.replace(/\$\s?|(,*)/g, '') as unknown as number}
                         disabled={!canEdit}
                         min={1}
                         max={3650}
-                        className="w-full"
+                        style={{ width: '150px' }}
                       />
                       <div className="mt-1 text-xs text-gray-500">
                         How long logs should be kept before automatic deletion

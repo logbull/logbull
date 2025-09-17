@@ -164,7 +164,7 @@ docker compose up -d
 If you need to reset the admin password, you can use the built-in password reset command:
 
 ```bash
-docker exec -it logbull ./main --new-password="YourNewSecurePassword123" --email="admin@example.com"
+docker exec -it logbull ./main --new-password="YourNewSecurePassword123" --email="admin"
 ```
 
 Replace `admin@example.com` with the actual email address of the user whose password you want to reset.
