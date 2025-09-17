@@ -1,0 +1,482 @@
+name: CI and Release
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+
+jobs:
+  lint-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.3"
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('backend/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.60.3
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      - name: Install swag for swagger generation
+        run: go install github.com/swaggo/swag/cmd/swag@v1.16.4
+
+      - name: Generate swagger docs
+        run: |
+          cd backend
+          swag init -d . -g cmd/main.go -o swagger
+
+      - name: Run golangci-lint
+        run: |
+          cd backend
+          golangci-lint run
+
+      - name: Verify go mod tidy
+        run: |
+          cd backend
+          go mod tidy
+          git diff --exit-code go.mod go.sum || (echo "go mod tidy made changes, please run 'go mod tidy' and commit the changes" && exit 1)
+
+  lint-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Check if prettier was run
+        run: |
+          cd frontend
+          npm run format
+          git diff --exit-code || (echo "Prettier made changes, please run 'npm run format' and commit the changes" && exit 1)
+
+      - name: Check if linter was run
+        run: |
+          cd frontend
+          npm run lint
+
+  test-backend:
+    runs-on: ubuntu-latest
+    needs: [lint-backend]
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.3"
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('backend/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Create .env file for testing
+        run: |
+          cd backend
+          cat > .env << EOF
+          # docker-compose.yml
+          DEV_DB_NAME=logbull
+          DEV_DB_USERNAME=postgres
+          DEV_DB_PASSWORD=Q1234567
+          # app
+          ENV_MODE=development
+          BACKEND_ROOT_PATH=/github/workspace/backend
+          # db
+          DATABASE_DSN=host=localhost user=postgres password=Q1234567 dbname=logbull port=5437 sslmode=disable
+          DATABASE_URL=postgres://postgres:Q1234567@localhost:5437/logbull?sslmode=disable
+          # migrations
+          GOOSE_DRIVER=postgres
+          GOOSE_DBSTRING=postgres://postgres:Q1234567@localhost:5437/logbull?sslmode=disable
+          GOOSE_MIGRATION_DIR=./migrations
+          # opensearch
+          OPENSEARCH_URL=http://localhost
+          OPENSEARCH_API_PORT=9200
+          OPENSEARCH_TRANSPORT_PORT=9300
+          # valkey
+          VALKEY_HOST=localhost
+          VALKEY_PORT=6379
+          VALKEY_USERNAME=
+          VALKEY_PASSWORD=
+          VALKEY_IS_SSL=false
+          VALKEY_URL=redis://localhost:6379
+          EOF
+
+      - name: Prepare container directories
+        run: |
+          cd backend
+          # Create and set permissions for OpenSearch data directory
+          mkdir -p opensearch-data
+          chmod 777 opensearch-data
+          # Create PostgreSQL data directory
+          mkdir -p pgdata
+          chmod 777 pgdata
+
+      - name: Start test containers
+        run: |
+          cd backend
+          docker compose -f docker-compose.yml.example up -d
+
+      - name: Check container status and logs
+        run: |
+          cd backend
+          echo "=== System Resources ==="
+          free -h
+          echo "=== Container Status ==="
+          docker ps -a
+          echo "=== OpenSearch Container Info ==="
+          docker inspect dev-opensearch | grep -E "(Status|Health|Memory)" || true
+          echo "=== OpenSearch Logs ==="
+          docker logs dev-opensearch --tail 50 || echo "Failed to get OpenSearch logs"
+          echo "=== PostgreSQL Logs ==="
+          docker logs dev-db --tail 20 || echo "Failed to get PostgreSQL logs"
+
+      - name: Wait for containers to be ready
+        run: |
+          # Wait for main dev database (PostgreSQL)
+          echo "Waiting for PostgreSQL to be ready..."
+          timeout 60 bash -c 'until docker exec dev-db pg_isready -h localhost -p 5437 -U postgres; do sleep 2; done'
+          echo "PostgreSQL is ready"
+
+          # Wait for OpenSearch to be ready (cluster status: green or yellow)
+          echo "Waiting for OpenSearch cluster to be ready..."
+          timeout 120 bash -c '
+            until HEALTH_STATUS=$(curl -s "http://localhost:9200/_cluster/health" 2>/dev/null) && echo "$HEALTH_STATUS" | grep -E "\"status\":\"(green|yellow)\"" >/dev/null; do
+              if [ -n "$HEALTH_STATUS" ]; then
+                echo "OpenSearch status: $(echo "$HEALTH_STATUS" | grep -o "\"status\":\"[^\"]*\"" || echo "unknown")"
+              else
+                echo "OpenSearch not responding yet..."
+              fi
+              sleep 3
+            done'
+          echo "OpenSearch cluster is ready"
+
+          # Wait for Valkey
+          echo "Waiting for Valkey to be ready..."
+          timeout 60 bash -c 'until nc -z localhost 6379; do sleep 2; done'
+          echo "Valkey is ready"
+
+          echo "All services are ready!"
+
+      - name: Create data and temp directories
+        run: |
+          # Create directories that are used for backups and restore
+          # These paths match what's configured in config.go
+          mkdir -p logbull-data/backups
+          mkdir -p logbull-data/temp
+
+      - name: Run database migrations
+        run: |
+          cd backend
+          go install github.com/pressly/goose/v3/cmd/goose@latest
+          goose up
+
+      - name: Run Go tests
+        run: |
+          cd backend
+          go test ./internal/...
+
+      - name: Stop test containers
+        if: always()
+        run: |
+          cd backend
+          docker compose -f docker-compose.yml.example down -v
+
+  determine-version:
+    runs-on: ubuntu-latest
+    needs: [test-backend, lint-frontend]
+    if: ${{ github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip-release]') }}
+    outputs:
+      should_release: ${{ steps.version_bump.outputs.should_release }}
+      new_version: ${{ steps.version_bump.outputs.new_version }}
+      bump_type: ${{ steps.version_bump.outputs.bump_type }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install semver
+        run: npm install -g semver
+
+      - name: Get current version
+        id: current_version
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "current_version=${LATEST_TAG#v}" >> $GITHUB_OUTPUT
+          echo "Current version: ${LATEST_TAG#v}"
+
+      - name: Analyze commits and determine version bump
+        id: version_bump
+        run: |
+          CURRENT_VERSION="${{ steps.current_version.outputs.current_version }}"
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+
+          # Get commits since last tag
+          if [ "$LATEST_TAG" = "v0.0.0" ]; then
+            COMMITS=$(git log --pretty=format:"%s" --no-merges)
+          else
+            COMMITS=$(git log ${LATEST_TAG}..HEAD --pretty=format:"%s" --no-merges)
+          fi
+
+          echo "Analyzing commits:"
+          echo "$COMMITS"
+
+          # Initialize flags
+          HAS_FEATURE=false
+          HAS_FIX=false
+          HAS_BREAKING=false
+
+          # Analyze each commit
+          while IFS= read -r commit; do
+            if [[ "$commit" =~ ^FEATURE ]]; then
+              HAS_FEATURE=true
+              echo "Found FEATURE commit: $commit"
+            elif [[ "$commit" =~ ^FIX ]]; then
+              HAS_FIX=true
+              echo "Found FIX commit: $commit"
+            elif [[ "$commit" =~ ^REFACTOR ]]; then
+              HAS_FIX=true  # Treat refactor as patch
+              echo "Found REFACTOR commit: $commit"
+            fi
+            
+            # Check for breaking changes
+            if [[ "$commit" =~ BREAKING[[:space:]]CHANGE ]] || [[ "$commit" =~ "!" ]]; then
+              HAS_BREAKING=true
+              echo "Found BREAKING CHANGE: $commit"
+            fi
+          done <<< "$COMMITS"
+
+          # Determine version bump
+          if [ "$HAS_BREAKING" = true ]; then
+            BUMP_TYPE="major"
+          elif [ "$HAS_FEATURE" = true ]; then
+            BUMP_TYPE="minor"
+          elif [ "$HAS_FIX" = true ]; then
+            BUMP_TYPE="patch"
+          else
+            BUMP_TYPE="none"
+          fi
+
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+
+          if [ "$BUMP_TYPE" != "none" ]; then
+            NEW_VERSION=$(npx semver -i $BUMP_TYPE $CURRENT_VERSION)
+            echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "New version will be: $NEW_VERSION"
+          else
+            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "No version bump needed"
+          fi
+
+  build-only:
+    runs-on: ubuntu-latest
+    needs: [test-backend, lint-frontend]
+    if: ${{ github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[skip-release]') }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (enables multi-arch emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push SHA-only tags
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          build-args: |
+            APP_VERSION=dev-${{ github.sha }}
+          tags: |
+            rostislavdugin/logbull:latest
+            rostislavdugin/logbull:${{ github.sha }}
+
+  build-and-push:
+    runs-on: ubuntu-latest
+    needs: [determine-version]
+    if: ${{ needs.determine-version.outputs.should_release == 'true' }}
+    permissions:
+      contents: write
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (enables multi-arch emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push with version tags
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          build-args: |
+            APP_VERSION=${{ needs.determine-version.outputs.new_version }}
+          tags: |
+            rostislavdugin/logbull:latest
+            rostislavdugin/logbull:v${{ needs.determine-version.outputs.new_version }}
+            rostislavdugin/logbull:${{ github.sha }}
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [determine-version, build-and-push]
+    if: ${{ needs.determine-version.outputs.should_release == 'true' }}
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          NEW_VERSION="${{ needs.determine-version.outputs.new_version }}"
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+
+          # Get commits since last tag
+          if [ "$LATEST_TAG" = "v0.0.0" ]; then
+            COMMITS=$(git log --pretty=format:"%s|%H|%an|%ad" --date=short --no-merges)
+          else
+            COMMITS=$(git log ${LATEST_TAG}..HEAD --pretty=format:"%s|%H|%an|%ad" --date=short --no-merges)
+          fi
+
+          # Create changelog
+          CHANGELOG="# Changelog\n\n## [${NEW_VERSION}] - $(date +%Y-%m-%d)\n\n"
+
+          # Group commits by type and area
+          FEATURES=""
+          FIXES=""
+          REFACTORS=""
+
+          while IFS= read -r line; do
+            if [ -n "$line" ]; then
+              COMMIT_MSG=$(echo "$line" | cut -d'|' -f1)
+              COMMIT_HASH=$(echo "$line" | cut -d'|' -f2)
+              SHORT_HASH=${COMMIT_HASH:0:7}
+              
+              # Parse commit message format: TYPE (area): description
+              if [[ "$COMMIT_MSG" == FEATURE* ]]; then
+                TEMP="${COMMIT_MSG#FEATURE}"
+                TEMP="${TEMP#"${TEMP%%[![:space:]]*}"}"
+                if [[ "$TEMP" == \(* ]]; then
+                  AREA=$(echo "$TEMP" | sed 's/^(\([^)]*\)).*/\1/')
+                  DESC=$(echo "$TEMP" | sed 's/^([^)]*):[[:space:]]*//')
+                  FEATURES="${FEATURES}- **${AREA}**: ${DESC} ([${SHORT_HASH}](https://github.com/${{ github.repository }}/commit/${COMMIT_HASH}))\n"
+                fi
+              elif [[ "$COMMIT_MSG" == FIX* ]]; then
+                TEMP="${COMMIT_MSG#FIX}"
+                TEMP="${TEMP#"${TEMP%%[![:space:]]*}"}"
+                if [[ "$TEMP" == \(* ]]; then
+                  AREA=$(echo "$TEMP" | sed 's/^(\([^)]*\)).*/\1/')
+                  DESC=$(echo "$TEMP" | sed 's/^([^)]*):[[:space:]]*//')
+                  FIXES="${FIXES}- **${AREA}**: ${DESC} ([${SHORT_HASH}](https://github.com/${{ github.repository }}/commit/${COMMIT_HASH}))\n"
+                fi
+              elif [[ "$COMMIT_MSG" == REFACTOR* ]]; then
+                TEMP="${COMMIT_MSG#REFACTOR}"
+                TEMP="${TEMP#"${TEMP%%[![:space:]]*}"}"
+                if [[ "$TEMP" == \(* ]]; then
+                  AREA=$(echo "$TEMP" | sed 's/^(\([^)]*\)).*/\1/')
+                  DESC=$(echo "$TEMP" | sed 's/^([^)]*):[[:space:]]*//')
+                  REFACTORS="${REFACTORS}- **${AREA}**: ${DESC} ([${SHORT_HASH}](https://github.com/${{ github.repository }}/commit/${COMMIT_HASH}))\n"
+                fi
+              fi
+            fi
+          done <<< "$COMMITS"
+
+          # Build changelog sections
+          if [ -n "$FEATURES" ]; then
+            CHANGELOG="${CHANGELOG}### ✨ Features\n${FEATURES}\n"
+          fi
+
+          if [ -n "$FIXES" ]; then
+            CHANGELOG="${CHANGELOG}### 🐛 Bug Fixes\n${FIXES}\n"
+          fi
+
+          if [ -n "$REFACTORS" ]; then
+            CHANGELOG="${CHANGELOG}### 🔨 Refactoring\n${REFACTORS}\n"
+          fi
+
+          # Add Docker image info
+          CHANGELOG="${CHANGELOG}### 🐳 Docker\n"
+          CHANGELOG="${CHANGELOG}- **Image**: \`rostislavdugin/logbull:v${NEW_VERSION}\`\n"
+          CHANGELOG="${CHANGELOG}- **Platforms**: linux/amd64\n\n"
+
+          # Set output for GitHub release
+          {
+            echo 'changelog<<EOF'
+            echo -e "$CHANGELOG"
+            echo EOF
+          } >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ needs.determine-version.outputs.new_version }}
+          release_name: Release v${{ needs.determine-version.outputs.new_version }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          draft: false
+          prerelease: false

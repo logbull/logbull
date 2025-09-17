@@ -1,0 +1,27 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+When writting migrations:
+
+- write them for PostgreSQL
+- for PRIMARY UUID keys use gen_random_uuid()
+- for time use TIMESTAMPTZ (timestamp with zone)
+- split table, constraint and indexes declaration (table first, them other one by one)
+- format SQL in pretty way (add spaces, align columns types), constraints split by lines. The example:
+
+CREATE TABLE marketplace_info (
+    bot_id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title             TEXT NOT NULL,
+    description       TEXT NOT NULL,
+    short_description TEXT NOT NULL,
+    tutorial_url      TEXT,
+    info_order        BIGINT NOT NULL DEFAULT 0,
+    is_published      BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+ALTER TABLE marketplace_info_images
+    ADD CONSTRAINT fk_marketplace_info_images_bot_id
+    FOREIGN KEY (bot_id)
+    REFERENCES marketplace_info (bot_id);

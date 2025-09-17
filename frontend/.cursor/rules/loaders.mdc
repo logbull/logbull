@@ -1,0 +1,9 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+As loader use this componetn from AntD:
+
+<Spin indicator={<LoadingOutlined spin />} />

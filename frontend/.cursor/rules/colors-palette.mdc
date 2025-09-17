@@ -1,0 +1,9 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+For colors use TailwindCSS colors "emerald"
+
+For buttons - emerald-600 (#009966)

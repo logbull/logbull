@@ -1,0 +1,50 @@
+@import 'tailwindcss';
+
+:root {
+  font-family:
+    'Jost',
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:root,
+html,
+body {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* START OF SCROLLBAR STYLING */
+*::-webkit-scrollbar {
+  width: 3px;
+  padding: 5px;
+}
+
+/* Track */
+*::-webkit-scrollbar-track {
+  background: gainsboro;
+}
+
+/* Handle */
+*::-webkit-scrollbar-thumb {
+  background: #adadad;
+  border-radius: 360px;
+}
+
+/* Handle on hover */
+*::-webkit-scrollbar-thumb:hover {
+  background: #555;
+  cursor: pointer;
+}
+/* END OF SCROLLBAR STYLING */

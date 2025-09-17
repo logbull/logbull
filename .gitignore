@@ -1,0 +1,8 @@
+.vscode/
+.env
+pgdata/
+docker-compose.yml
+node_modules/
+.idea
+logbull-data/
+__pycache__/

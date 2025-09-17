@@ -1,0 +1,19 @@
+version: "3"
+
+# Do not use this file in production or VPS. This
+# file is indended for local development only. To
+# run on your machine - read README.md
+
+services:
+  # For local development only to test build. Do
+  # not use in production or VPS
+  logbull-local:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "4005:4005"
+    volumes:
+      - ./logbull-data:/logbull-data
+    container_name: logbull-local
+    restart: unless-stopped

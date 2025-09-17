@@ -1,0 +1,70 @@
+version: "3.8"
+
+services:
+  # For development only, because this DB
+  # exposes it's port to the public
+  dev-db:
+    env_file:
+      - .env
+    image: postgres:17
+    ports:
+      - "5437:5437"
+    environment:
+      - POSTGRES_DB=${DEV_DB_NAME}
+      - POSTGRES_USER=${DEV_DB_USERNAME}
+      - POSTGRES_PASSWORD=${DEV_DB_PASSWORD}
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    container_name: dev-db
+    command: -p 5437
+    shm_size: 10gb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DEV_DB_USERNAME} -p 5437"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Valkey for caching and rate limiting
+  dev-valkey:
+    image: valkey/valkey:8.0-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./valkey-data:/data
+    container_name: dev-valkey
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+      
+  # OpenSearch for log storage and search
+  dev-opensearch:
+    image: opensearchproject/opensearch:2.11.1
+    ports:
+      - "9200:9200" # OpenSearch HTTP API
+      - "9300:9300" # OpenSearch transport
+    volumes:
+      - ./opensearch-data:/usr/share/opensearch/data
+    container_name: dev-opensearch
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=10s"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 60s
