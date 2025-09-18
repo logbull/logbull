@@ -88,7 +88,13 @@ export const ConditionEditorComponent = ({
     }
 
     const field = getOrCreateField(fieldName);
-    const newOperator = field.operations[0];
+    
+    // For "message" field, default to "contains" operator since it's more commonly used than "equals"
+    const newOperator =
+      fieldName === 'message' && field.operations.includes('contains')
+        ? 'contains'
+        : field.operations[0];
+
     onChange({
       field: fieldName,
       operator: newOperator,
@@ -249,17 +255,29 @@ export const ConditionEditorComponent = ({
     not_exists: 'does not exist',
   };
 
-  const fieldOptions = fields.map((field) => ({
-    value: field.name,
-    label: (
-      <div className="flex items-center justify-between">
-        <span>{field.name}</span>
-        <span className="text-xs text-gray-400">{field.type}</span>
-      </div>
-    ),
-  }));
+  const fieldOptions = (() => {
+    const options = fields.map((field) => ({
+      value: field.name,
+      label: (
+        <div className="flex items-center justify-between">
+          <span>{field.name}</span>
+          <span className="text-xs text-gray-400">{field.type}</span>
+        </div>
+      ),
+    }));
 
-  // useEffect hooks
+    // If field input is empty, move "message" option to the top
+    if (!condition?.field || condition.field.trim() === '') {
+      const messageIndex = options.findIndex((option) => option.value === 'message');
+      if (messageIndex > 0) {
+        const messageOption = options.splice(messageIndex, 1)[0];
+        options.unshift(messageOption);
+      }
+    }
+
+    return options;
+  })();
+
   useEffect(() => {
     // Initialize array values if condition has array value
     if (

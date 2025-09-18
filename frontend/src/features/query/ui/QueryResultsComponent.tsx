@@ -158,6 +158,12 @@ export const QueryResultsComponent = ({
   };
 
   const toggleRowExpansion = (logId: string) => {
+    // Check if user has selected text - if so, don't toggle the row
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) {
+      return;
+    }
+
     const newExpandedRows = new Set(expandedRows);
     if (expandedRows.has(logId)) {
       newExpandedRows.delete(logId);
@@ -277,7 +283,7 @@ export const QueryResultsComponent = ({
               {isExecuting && queryResults.length === 0 ? (
                 <Spin indicator={<LoadingOutlined spin />} size="small" />
               ) : (
-                `${queryResults.length}${totalResults > queryResults.length ? `+ of ${totalResults}` : ''} results${queryResults.length > 0 ? ' loaded' : ' found'}`
+                `${queryResults.length.toLocaleString()}${totalResults > queryResults.length ? `+ of ${totalResults.toLocaleString()}` : ''} results${queryResults.length > 0 ? ' loaded' : ' found'}`
               )}
             </span>
           </div>
@@ -318,8 +324,16 @@ export const QueryResultsComponent = ({
                   className="flex cursor-pointer items-start gap-2 border-b border-gray-100 py-1 text-xs hover:bg-gray-50"
                   onClick={() => toggleRowExpansion(log.id)}
                 >
-                  <div style={{ width: '150px' }} className="font-mono text-xs text-gray-600">
-                    {dayjs(log.timestamp).format('MMM D HH:mm:ss.SSS')}
+                  <div
+                    style={{ width: '150px', lineHeight: 1.1 }}
+                    className="font-mono text-xs text-gray-600"
+                  >
+                    <div style={{ fontSize: '12px' }}>
+                      {dayjs(log.timestamp).format('MMM D HH:mm:ss.SSS')}
+                    </div>
+                    <div className="text-gray-400" style={{ fontSize: '10px' }}>
+                      {dayjs(log.timestamp).fromNow()}
+                    </div>
                   </div>
                   <div style={{ width: '85px' }}>{renderLogLevel(log.level)}</div>
                   <div
@@ -349,7 +363,7 @@ export const QueryResultsComponent = ({
             {/* End of results indicator */}
             {!hasMoreResults && queryResults.length > 0 && (
               <div className="py-2 text-center text-xs text-gray-500">
-                All {totalResults} results loaded
+                All {totalResults.toLocaleString()} results loaded
               </div>
             )}
           </div>
