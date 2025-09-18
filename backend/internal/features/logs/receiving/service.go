@@ -6,13 +6,13 @@ import (
 	"log/slog"
 	"net"
 	"strings"
-	"time"
 
 	api_keys "logbull/internal/features/api_keys"
 	logs_core "logbull/internal/features/logs/core"
 	projects_models "logbull/internal/features/projects/models"
 	projects_services "logbull/internal/features/projects/services"
 	rate_limit "logbull/internal/util/rate_limit"
+	time_parser "logbull/internal/util/time"
 
 	"github.com/google/uuid"
 )
@@ -119,14 +119,12 @@ func (s *LogReceivingService) processLogItems(
 			continue
 		}
 
-		formattedMessage := s.prettyFormatIfMessageJSON(logRequest.Message)
-
 		logItem := &logs_core.LogItem{
 			ID:        uuid.New(),
 			ProjectID: projectID,
-			Timestamp: time.Now().UTC(),
+			Timestamp: time_parser.ParseTimestamp(logRequest.Timestamp),
 			Level:     logRequest.Level,
-			Message:   formattedMessage,
+			Message:   s.prettyFormatIfMessageJSON(logRequest.Message),
 			Fields:    logRequest.Fields,
 			ClientIP:  clientIP,
 		}
