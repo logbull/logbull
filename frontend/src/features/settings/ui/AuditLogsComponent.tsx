@@ -149,7 +149,7 @@ export function AuditLogsComponent({ scrollContainerRef: externalScrollRef }: Pr
   return (
     <div className="max-w-[1200px]">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Audit Logs</h1>
+        <h2 className="text-xl font-bold">Audit Logs</h2>
         <div className="text-sm text-gray-500">
           {isLoading ? (
             <Spin indicator={<LoadingOutlined spin />} />

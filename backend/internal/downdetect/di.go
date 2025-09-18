@@ -1,6 +1,12 @@
 package downdetect
 
-var downdetectService = &DowndetectService{}
+import (
+	logs_core "logbull/internal/features/logs/core"
+)
+
+var downdetectService = &DowndetectService{
+	logs_core.GetLogCoreRepository(),
+}
 var downdetectController = &DowndetectController{
 	downdetectService,
 }

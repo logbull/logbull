@@ -24,7 +24,7 @@ func (c *DowndetectController) RegisterRoutes(router *gin.RouterGroup) {
 // @Failure 500
 // @Router /downdetect/is-available [get]
 func (c *DowndetectController) IsAvailable(ctx *gin.Context) {
-	err := c.service.IsDbAvailable()
+	err := c.service.IsAvailable()
 	if err != nil {
 		ctx.JSON(
 			http.StatusInternalServerError,
@@ -33,5 +33,8 @@ func (c *DowndetectController) IsAvailable(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"message": "API and DB are available"})
+	ctx.JSON(
+		http.StatusOK,
+		gin.H{"message": "API, DB (PostgreSQL), logs storage (OpenSearch) and cache (Valkey) are available"},
+	)
 }

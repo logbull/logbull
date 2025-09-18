@@ -345,7 +345,7 @@ export function ProjectSettingsComponent({ projectResponse, user, contentHeight 
               <div className="space-y-6 text-sm">
                 <div className="max-w-2xl border-b border-gray-200 pb-6">
                   <div className="max-w-md">
-                    <div className="mb-1 font-medium text-gray-900">Project Name</div>
+                    <div className="mb-1 font-medium text-gray-900">Project name</div>
                     <Input
                       value={formProject.name || ''}
                       onChange={(e) => {
@@ -371,6 +371,7 @@ export function ProjectSettingsComponent({ projectResponse, user, contentHeight 
                       >
                         {isSaving ? 'Saving...' : 'Save Changes'}
                       </Button>
+
                       <Button
                         type="default"
                         onClick={() => {

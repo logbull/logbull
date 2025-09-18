@@ -2,6 +2,7 @@ import { LoadingOutlined } from '@ant-design/icons';
 import { App, Button, Spin, Switch } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 
+import { getApplicationServer } from '../../../constants';
 import { settingsApi } from '../../../entity/users/api/settingsApi';
 import type { UsersSettings } from '../../../entity/users/model/UsersSettings';
 import { AuditLogsComponent } from './AuditLogsComponent';
@@ -202,6 +203,44 @@ export function SettingsComponent({ contentHeight }: Props) {
                 )}
               </div>
             )}
+          </div>
+
+          {/* Health-check Information */}
+          <div className="my-8 max-w-2xl">
+            <h2 className="mb-3 text-xl font-bold">Health-check</h2>
+
+            <div className="group relative">
+              <div className="flex items-center rounded-md border border-gray-300 bg-gray-50 px-3 py-2 font-mono text-sm text-gray-700">
+                <code
+                  className="flex-1 cursor-pointer transition-colors select-all hover:text-emerald-600"
+                  onClick={() => {
+                    window.open(
+                      `${getApplicationServer()}/api/v1/downdetect/is-available`,
+                      '_blank',
+                    );
+                  }}
+                  title="Click to open in new tab"
+                >
+                  {getApplicationServer()}/api/v1/downdetect/is-available
+                </code>
+                <Button
+                  type="text"
+                  size="small"
+                  className="ml-2 opacity-0 transition-opacity group-hover:opacity-100"
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      `${getApplicationServer()}/api/v1/downdetect/is-available`,
+                    );
+                    message.success('Health-check endpoint copied to clipboard');
+                  }}
+                >
+                  📋
+                </Button>
+              </div>
+              <div className="mt-1 text-xs text-gray-500">
+                Use this endpoint to monitor your LogBull system&apos;s availability
+              </div>
+            </div>
           </div>
 
           <AuditLogsComponent scrollContainerRef={scrollContainerRef} />
