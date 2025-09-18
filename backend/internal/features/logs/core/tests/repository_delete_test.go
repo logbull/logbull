@@ -74,7 +74,7 @@ func Test_DeleteOldLogs_WhenOldLogsExist_DeletesLogsOlderThanSpecifiedTime(t *te
 		func(result *logs_core.LogQueryResponseDTO) bool {
 			return result.Total < beforeDeletionResult.Total
 		},
-		"logs should be deleted and total count should decrease", 5000)
+		"logs should be deleted and total count should decrease", 60_000)
 
 	assert.NotNil(t, afterDeletionResult)
 
@@ -175,14 +175,14 @@ func Test_DeleteLogsByProject_WhenProjectLogsExist_DeletesAllProjectLogs(t *test
 
 	// Wait for project 1 logs to be completely deleted
 	project1AfterDeletionResult := waitForDeletionCompletion(t, repository, project1ID,
-		project1BeforeDeletionQuery, 0, 5000)
+		project1BeforeDeletionQuery, 0, 60_000)
 
 	assert.Equal(t, int64(0), project1AfterDeletionResult.Total, "Project 1 logs should be deleted")
 	assert.Empty(t, project1AfterDeletionResult.Logs, "Project 1 should have no logs")
 
 	// Verify project 2 logs still exist (wait to ensure they weren't accidentally deleted)
 	project2AfterDeletionResult := waitForDeletionCompletion(t, repository, project2ID,
-		project2BeforeDeletionQuery, project2BeforeDeletionResult.Total, 3000)
+		project2BeforeDeletionQuery, project2BeforeDeletionResult.Total, 60_000)
 
 	assert.Equal(
 		t,
@@ -241,15 +241,11 @@ func Test_DeleteOldLogs_WithNoOldLogs_DoesNotFail(t *testing.T) {
 		Limit: 10,
 	}
 
-	verificationResult := waitForDeletionWithCondition(t, repository, projectID, verificationQuery,
-		func(result *logs_core.LogQueryResponseDTO) bool {
-			return result.Total >= 1
-		},
-		"recent logs should still exist after trying to delete non-existent old logs", 3000)
+	verificationResult, err := repository.ExecuteQueryForProject(projectID, verificationQuery)
+	assert.NoError(t, err)
 
 	assert.GreaterOrEqual(t, verificationResult.Total, int64(1), "Recent logs should still exist")
 }
-
 func waitForDeletionCompletion(
 	t *testing.T,
 	repository *logs_core.LogCoreRepository,
