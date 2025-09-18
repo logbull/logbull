@@ -92,33 +92,13 @@ func Test_LogsCleanedUpOnProjectDeletion(t *testing.T) {
 	flushErr := repository.ForceFlush()
 	assert.NoError(t, flushErr, "Should be able to flush after deletion")
 
-	// Wait up to 60 seconds for logs to be deleted, checking every 50ms
+	// Wait up to 60 seconds for logs to be deleted
 	timeout := 60 * time.Second
-	checkInterval := 50 * time.Millisecond
-	startTime := time.Now()
-
-	var logsAfterDeletion *logs_core.LogQueryResponseDTO
-	for {
-		var err error
-		logsAfterDeletion, err = repository.ExecuteQueryForProject(project.ID, queryBeforeDeletion)
-		assert.NoError(t, err, "Repository query should still work even if project is deleted")
-
-		// If no logs found, deletion was successful
-		if len(logsAfterDeletion.Logs) == 0 && logsAfterDeletion.Total == 0 {
-			break
-		}
-
-		// Check if timeout exceeded
-		if time.Since(startTime) > timeout {
-			t.Fatalf("Timeout: logs still exist after %v. Found %d logs, total: %d",
-				timeout, len(logsAfterDeletion.Logs), logsAfterDeletion.Total)
-		}
-
-		// Wait before next check
-		time.Sleep(checkInterval)
-	}
+	WaitForLogsDeletion(t, repository, project.ID, queryBeforeDeletion, timeout)
 
 	// Final verification that logs are completely removed
+	logsAfterDeletion, err := repository.ExecuteQueryForProject(project.ID, queryBeforeDeletion)
+	assert.NoError(t, err, "Repository query should still work even if project is deleted")
 	assert.Equal(t, 0, len(logsAfterDeletion.Logs), "All logs should be removed after project deletion")
 	assert.Equal(t, int64(0), logsAfterDeletion.Total, "Total count should be 0 after project deletion")
 }

@@ -463,8 +463,9 @@ func Test_DeleteLogsByProject_OnlyDeletesSpecifiedProject(t *testing.T) {
 	flushErr := repository.ForceFlush()
 	assert.NoError(t, flushErr)
 
-	// Wait a bit for deletion to propagate
-	time.Sleep(100 * time.Millisecond)
+	// Wait for deletion to propagate with timeout
+	timeout := 30 * time.Second
+	WaitForLogsDeletion(t, repository, project1, query, timeout)
 
 	// Verify project1 has no logs, others remain unchanged
 	project1AfterResult, _ := repository.ExecuteQueryForProject(project1, query)
@@ -528,17 +529,7 @@ func Test_DeleteOldLogs_OnlyDeletesFromSpecifiedProject(t *testing.T) {
 	allLogs = MergeLogEntries(allLogs, project2NewLogs)
 	StoreTestLogsAndFlush(t, repository, allLogs)
 
-	// Delete old logs from project1 only
-	cutoffTime := baseTime.Add(-1 * time.Hour)
-	deleteErr := repository.DeleteOldLogs(project1, cutoffTime)
-	assert.NoError(t, deleteErr)
-
-	// Force refresh
-	flushErr := repository.ForceFlush()
-	assert.NoError(t, flushErr)
-	time.Sleep(1 * time.Second)
-
-	// Verify results
+	// Create query for verification
 	query := &logs_core.LogQueryRequestDTO{
 		Query: &logs_core.QueryNode{
 			Type: logs_core.QueryNodeTypeCondition,
@@ -550,6 +541,19 @@ func Test_DeleteOldLogs_OnlyDeletesFromSpecifiedProject(t *testing.T) {
 		},
 		Limit: 10,
 	}
+
+	// Delete old logs from project1 only
+	cutoffTime := baseTime.Add(-1 * time.Hour)
+	deleteErr := repository.DeleteOldLogs(project1, cutoffTime)
+	assert.NoError(t, deleteErr)
+
+	// Force refresh
+	flushErr := repository.ForceFlush()
+	assert.NoError(t, flushErr)
+
+	// Wait for partial deletion to propagate with timeout
+	timeout := 30 * time.Second
+	WaitForLogsPartialDeletion(t, repository, project1, query, 1, timeout)
 
 	project1Result, _ := repository.ExecuteQueryForProject(project1, query)
 	project2Result, _ := repository.ExecuteQueryForProject(project2, query)
