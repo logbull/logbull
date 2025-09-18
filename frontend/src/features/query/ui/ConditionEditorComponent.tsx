@@ -88,7 +88,7 @@ export const ConditionEditorComponent = ({
     }
 
     const field = getOrCreateField(fieldName);
-    
+
     // For "message" field, default to "contains" operator since it's more commonly used than "equals"
     const newOperator =
       fieldName === 'message' && field.operations.includes('contains')
