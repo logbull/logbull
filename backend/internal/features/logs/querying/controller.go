@@ -20,6 +20,7 @@ func (c *LogQueryController) RegisterRoutes(router *gin.RouterGroup) {
 
 	queryRoutes.POST("/execute/:projectId", c.ExecuteQuery)
 	queryRoutes.GET("/fields/:projectId", c.GetQueryableFields)
+	queryRoutes.GET("/stats/:projectId", c.GetProjectStats)
 }
 
 // ExecuteQuery
@@ -107,6 +108,46 @@ func (c *LogQueryController) GetQueryableFields(ctx *gin.Context) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		} else {
 			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get queryable fields"})
+		}
+		return
+	}
+
+	ctx.JSON(http.StatusOK, response)
+}
+
+// GetProjectStats
+// @Summary Get project log statistics
+// @Description Get statistics about logs for a project including total count, size, and time range
+// @Tags logs-query
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param projectId path string true "Project ID (UUID format)"
+// @Success 200 {object} logs_core.ProjectLogStats
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Router /logs/query/stats/{projectId} [get]
+func (c *LogQueryController) GetProjectStats(ctx *gin.Context) {
+	user, isOk := ctx.MustGet("user").(*users_models.User)
+	if !isOk {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user type in context"})
+		return
+	}
+
+	projectIDStr := ctx.Param("projectId")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID format"})
+		return
+	}
+
+	response, err := c.logQueryService.GetProjectStats(projectID, user)
+	if err != nil {
+		if strings.Contains(err.Error(), "insufficient permissions") {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		} else {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get project stats"})
 		}
 		return
 	}

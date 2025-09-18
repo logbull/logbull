@@ -16,3 +16,4 @@ export type { GetQueryableFieldsRequest } from './model/GetQueryableFieldsReques
 export type { GetQueryableFieldsResponse } from './model/GetQueryableFieldsResponse';
 export type { ValidationError } from './model/ValidationError';
 export type { QueryNode } from './model/QueryNode';
+export type { ProjectLogStats } from './model/ProjectLogStats';

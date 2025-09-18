@@ -92,6 +92,26 @@ func (s *LogQueryService) GetQueryableFields(
 	}, nil
 }
 
+func (s *LogQueryService) GetProjectStats(
+	projectID uuid.UUID,
+	user *users_models.User,
+) (*logs_core.ProjectLogStats, error) {
+	canAccess, _, err := s.projectService.CanUserAccessProject(projectID, user)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify project access: %w", err)
+	}
+	if !canAccess {
+		return nil, errors.New("insufficient permissions to view project stats")
+	}
+
+	stats, err := s.logRepository.GetProjectLogStats(projectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get project stats: %w", err)
+	}
+
+	return stats, nil
+}
+
 func (s *LogQueryService) combineFields(discoveredFieldNames []string) []logs_core.QueryableField {
 	fieldMap := make(map[string]logs_core.QueryableField)
 	for _, field := range logs_core.PredefinedQueryableFields {

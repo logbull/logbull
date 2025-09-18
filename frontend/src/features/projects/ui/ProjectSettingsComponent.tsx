@@ -1,10 +1,13 @@
 import { LoadingOutlined } from '@ant-design/icons';
 import { App, Button, Input, InputNumber, Select, Spin, Switch } from 'antd';
+import dayjs from 'dayjs';
 import { useEffect, useRef, useState } from 'react';
 
 import { projectApi } from '../../../entity/projects/api/projectApi';
 import type { Project } from '../../../entity/projects/model/Project';
 import type { ProjectResponse } from '../../../entity/projects/model/ProjectResponse';
+import { queryApi } from '../../../entity/query/api/queryApi';
+import type { ProjectLogStats } from '../../../entity/query/model/ProjectLogStats';
 import { ProjectRole } from '../../../entity/users/model/ProjectRole';
 import type { UserProfile } from '../../../entity/users/model/UserProfile';
 import { UserRole } from '../../../entity/users/model/UserRole';
@@ -22,6 +25,10 @@ export function ProjectSettingsComponent({ projectResponse, user, contentHeight 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Project stats state
+  const [projectStats, setProjectStats] = useState<ProjectLogStats | undefined>(undefined);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
 
   // Scroll container ref for audit logs lazy loading
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -44,6 +51,7 @@ export function ProjectSettingsComponent({ projectResponse, user, contentHeight 
 
   useEffect(() => {
     loadProject();
+    loadProjectStats();
   }, [projectResponse.id]);
 
   // Helper functions to check section-specific changes
@@ -135,6 +143,21 @@ export function ProjectSettingsComponent({ projectResponse, user, contentHeight 
       message.error(errorMessage);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadProjectStats = async () => {
+    setIsLoadingStats(true);
+
+    try {
+      const stats = await queryApi.getProjectStats(projectResponse.id);
+      setProjectStats(stats);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to load project statistics';
+      message.error(errorMessage);
+    } finally {
+      setIsLoadingStats(false);
     }
   };
 
@@ -744,6 +767,8 @@ export function ProjectSettingsComponent({ projectResponse, user, contentHeight 
 
                 {/* Project Deletion */}
                 <div className="max-w-2xl border-b border-gray-200 pb-6">
+                  <h2 className="mb-4 text-xl font-bold text-gray-900">Danger Zone</h2>
+
                   <div className="rounded-lg border border-red-200 bg-red-50 p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -768,6 +793,41 @@ export function ProjectSettingsComponent({ projectResponse, user, contentHeight 
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* Project Statistics */}
+                <div className="max-w-2xl">
+                  <h2 className="mb-4 text-xl font-bold text-gray-900">Project Statistics</h2>
+                  {isLoadingStats ? (
+                    <div className="flex items-center py-2">
+                      <Spin indicator={<LoadingOutlined spin />} />
+                      <span className="ml-2 text-sm text-gray-500">Loading statistics...</span>
+                    </div>
+                  ) : projectStats ? (
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Total logs:</span>
+                        <span className="font-medium">
+                          {projectStats.totalLogs.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Storage size:</span>
+                        <span className="font-medium">
+                          {projectStats.totalSizeMb.toFixed(2)} MB
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Date range:</span>
+                        <span className="font-medium">
+                          {dayjs(projectStats.oldestLogTime).format('D MMM YYYY')} -{' '}
+                          {dayjs(projectStats.newestLogTime).format('D MMM YYYY')}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500">No statistics available</div>
+                  )}
                 </div>
 
                 <ProjectAuditLogsComponent
