@@ -69,14 +69,13 @@ func Test_DeleteOldLogs_WhenOldLogsExist_DeletesLogsOlderThanSpecifiedTime(t *te
 	err = repository.DeleteOldLogs(projectID, cutoffTime)
 	assert.NoError(t, err)
 
-	err = repository.ForceFlush()
-	assert.NoError(t, err)
+	// Wait for deletion to complete with condition check
+	afterDeletionResult := waitForDeletionWithCondition(t, repository, projectID, beforeDeletionQuery,
+		func(result *logs_core.LogQueryResponseDTO) bool {
+			return result.Total < beforeDeletionResult.Total
+		},
+		"logs should be deleted and total count should decrease", 5000)
 
-	time.Sleep(1 * time.Second)
-
-	// Verify only recent logs remain
-	afterDeletionResult, err := repository.ExecuteQueryForProject(projectID, beforeDeletionQuery)
-	assert.NoError(t, err)
 	assert.NotNil(t, afterDeletionResult)
 
 	// Should have fewer logs than before
@@ -174,20 +173,17 @@ func Test_DeleteLogsByProject_WhenProjectLogsExist_DeletesAllProjectLogs(t *test
 	err = repository.DeleteLogsByProject(project1ID)
 	assert.NoError(t, err)
 
-	time.Sleep(1 * time.Second)
+	// Wait for project 1 logs to be completely deleted
+	project1AfterDeletionResult := waitForDeletionCompletion(t, repository, project1ID,
+		project1BeforeDeletionQuery, 0, 5000)
 
-	err = repository.ForceFlush()
-	assert.NoError(t, err)
-
-	// Verify project 1 logs are deleted
-	project1AfterDeletionResult, err := repository.ExecuteQueryForProject(project1ID, project1BeforeDeletionQuery)
-	assert.NoError(t, err)
 	assert.Equal(t, int64(0), project1AfterDeletionResult.Total, "Project 1 logs should be deleted")
 	assert.Empty(t, project1AfterDeletionResult.Logs, "Project 1 should have no logs")
 
-	// Verify project 2 logs still exist
-	project2AfterDeletionResult, err := repository.ExecuteQueryForProject(project2ID, project2BeforeDeletionQuery)
-	assert.NoError(t, err)
+	// Verify project 2 logs still exist (wait to ensure they weren't accidentally deleted)
+	project2AfterDeletionResult := waitForDeletionCompletion(t, repository, project2ID,
+		project2BeforeDeletionQuery, project2BeforeDeletionResult.Total, 3000)
+
 	assert.Equal(
 		t,
 		project2BeforeDeletionResult.Total,
@@ -232,7 +228,7 @@ func Test_DeleteOldLogs_WithNoOldLogs_DoesNotFail(t *testing.T) {
 	err := repository.DeleteOldLogs(projectID, cutoffTime)
 	assert.NoError(t, err, "Deleting old logs when none exist should not fail")
 
-	// Verify recent logs still exist
+	// Verify recent logs still exist using helper function
 	verificationQuery := &logs_core.LogQueryRequestDTO{
 		Query: &logs_core.QueryNode{
 			Type: logs_core.QueryNodeTypeCondition,
@@ -245,7 +241,90 @@ func Test_DeleteOldLogs_WithNoOldLogs_DoesNotFail(t *testing.T) {
 		Limit: 10,
 	}
 
-	verificationResult, err := repository.ExecuteQueryForProject(projectID, verificationQuery)
-	assert.NoError(t, err)
+	verificationResult := waitForDeletionWithCondition(t, repository, projectID, verificationQuery,
+		func(result *logs_core.LogQueryResponseDTO) bool {
+			return result.Total >= 1
+		},
+		"recent logs should still exist after trying to delete non-existent old logs", 3000)
+
 	assert.GreaterOrEqual(t, verificationResult.Total, int64(1), "Recent logs should still exist")
+}
+
+func waitForDeletionCompletion(
+	t *testing.T,
+	repository *logs_core.LogCoreRepository,
+	projectID uuid.UUID,
+	query *logs_core.LogQueryRequestDTO,
+	expectedTotal int64,
+	timeoutMs int,
+) *logs_core.LogQueryResponseDTO {
+	const pollIntervalMs = 50
+	maxAttempts := timeoutMs / pollIntervalMs
+
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		err := repository.ForceFlush()
+		assert.NoError(t, err, "Force flush should not fail on attempt %d", attempt+1)
+
+		result, err := repository.ExecuteQueryForProject(projectID, query)
+		assert.NoError(t, err, "Query should not fail on attempt %d", attempt+1)
+
+		if result.Total == expectedTotal {
+			return result
+		}
+
+		time.Sleep(pollIntervalMs * time.Millisecond)
+	}
+
+	// Final attempt after timeout
+	err := repository.ForceFlush()
+	assert.NoError(t, err, "Final force flush should not fail")
+
+	result, err := repository.ExecuteQueryForProject(projectID, query)
+	assert.NoError(t, err, "Final query should not fail")
+
+	assert.Equal(t, expectedTotal, result.Total,
+		"Expected %d logs after deletion, but found %d (timeout after %dms)",
+		expectedTotal, result.Total, timeoutMs)
+
+	return result
+}
+
+func waitForDeletionWithCondition(
+	t *testing.T,
+	repository *logs_core.LogCoreRepository,
+	projectID uuid.UUID,
+	query *logs_core.LogQueryRequestDTO,
+	conditionCheck func(*logs_core.LogQueryResponseDTO) bool,
+	conditionDescription string,
+	timeoutMs int,
+) *logs_core.LogQueryResponseDTO {
+	const pollIntervalMs = 50
+	maxAttempts := timeoutMs / pollIntervalMs
+
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		err := repository.ForceFlush()
+		assert.NoError(t, err, "Force flush should not fail on attempt %d", attempt+1)
+
+		result, err := repository.ExecuteQueryForProject(projectID, query)
+		assert.NoError(t, err, "Query should not fail on attempt %d", attempt+1)
+
+		if conditionCheck(result) {
+			return result
+		}
+
+		time.Sleep(pollIntervalMs * time.Millisecond)
+	}
+
+	// Final attempt after timeout
+	err := repository.ForceFlush()
+	assert.NoError(t, err, "Final force flush should not fail")
+
+	result, err := repository.ExecuteQueryForProject(projectID, query)
+	assert.NoError(t, err, "Final query should not fail")
+
+	assert.True(t, conditionCheck(result),
+		"Deletion condition not met: %s (timeout after %dms)",
+		conditionDescription, timeoutMs)
+
+	return result
 }
