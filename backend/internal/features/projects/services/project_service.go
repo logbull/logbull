@@ -59,7 +59,7 @@ func (s *ProjectService) CreateProject(
 		AllowedIPsRaw:      "",
 		LogsPerSecondLimit: 1000,
 		MaxLogsAmount:      100_000_000,
-		MaxLogsSizeMB:      3_000_000,
+		MaxLogsSizeMB:      100_000, // 100 GB
 		MaxLogsLifeDays:    180,
 		MaxLogSizeKB:       64,
 		CreatedAt:          time.Now().UTC(),

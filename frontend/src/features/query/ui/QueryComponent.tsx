@@ -50,6 +50,11 @@ interface Props {
  * - Handles query validation and error responses
  */
 
+interface SavedQuery {
+  query: QueryNode | null;
+  sortOrder: 'asc' | 'desc';
+}
+
 export const QueryComponentComponent = ({ projectId, contentHeight }: Props): React.JSX.Element => {
   // States
   const [isShowHowToSendLogsFromCode, setIsShowHowToSendLogsFromCode] = useState(false);
@@ -65,6 +70,7 @@ export const QueryComponentComponent = ({ projectId, contentHeight }: Props): Re
   const [frozenTimeRange, setFrozenTimeRange] = useState<TimeRange | null>(null);
   const [pageSize] = useState(200);
   const [hasSearched, setHasSearched] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Refs
   const timeRangeRef = useRef<() => TimeRange | null>(null);
@@ -78,6 +84,36 @@ export const QueryComponentComponent = ({ projectId, contentHeight }: Props): Re
 
   // Functions
   const { message } = App.useApp();
+
+  // Query persistence functions
+  const getSavedQueryKey = (projectId: string): string => {
+    return `logbull-query-${projectId}`;
+  };
+
+  const saveQueryToStorage = (query: QueryNode | null, sortOrder: 'asc' | 'desc') => {
+    try {
+      const savedQuery: SavedQuery = {
+        query,
+        sortOrder,
+      };
+      localStorage.setItem(getSavedQueryKey(projectId), JSON.stringify(savedQuery));
+    } catch (error) {
+      console.warn('Failed to save query to localStorage:', error);
+    }
+  };
+
+  const loadQueryFromStorage = (): SavedQuery | null => {
+    try {
+      const saved = localStorage.getItem(getSavedQueryKey(projectId));
+      if (saved) {
+        return JSON.parse(saved) as SavedQuery;
+      }
+    } catch (error) {
+      console.warn('Failed to load query from localStorage:', error);
+    }
+    return null;
+  };
+
   const loadQueryableFields = async (searchTerm?: string, isSearch = false) => {
     if (isSearch) {
       setIsSearchingFields(true);
@@ -280,7 +316,36 @@ export const QueryComponentComponent = ({ projectId, contentHeight }: Props): Re
   // useEffect hooks
   useEffect(() => {
     loadQueryableFields();
+
+    // Load saved query for this project
+    const savedQuery = loadQueryFromStorage();
+    if (savedQuery) {
+      setCurrentQuery(savedQuery.query);
+      setSortOrder(savedQuery.sortOrder);
+    } else {
+      // Reset to defaults for new project
+      setCurrentQuery(null);
+      setSortOrder('desc');
+    }
+
+    // Reset other states when switching projects
+    setQueryResults([]);
+    setTotalResults(0);
+    setHasExecuted(false);
+    setHasMoreResults(false);
+    setFrozenTimeRange(null);
+    setHasSearched(false);
+
+    // Mark initial load as complete
+    setIsInitialLoad(false);
   }, [projectId]);
+
+  // Save query and sort order whenever they change (but not on initial load)
+  useEffect(() => {
+    if (!isInitialLoad) {
+      saveQueryToStorage(currentQuery, sortOrder);
+    }
+  }, [currentQuery, sortOrder, projectId, isInitialLoad]);
 
   return (
     <div
