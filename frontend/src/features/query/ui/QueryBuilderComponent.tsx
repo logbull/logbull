@@ -14,8 +14,7 @@ interface Props {
   fields: QueryableField[];
   query: QueryNode | null;
   onChange: (query: QueryNode | null) => void;
-  onFieldSearch?: (searchTerm?: string) => void;
-  isSearchingFields?: boolean;
+  onFieldSearch?: (searchTerm?: string) => Promise<QueryableField[]>;
 }
 
 export const QueryBuilderComponent = ({
@@ -23,7 +22,6 @@ export const QueryBuilderComponent = ({
   query,
   onChange,
   onFieldSearch,
-  isSearchingFields,
 }: Props): React.JSX.Element => {
   const createEmptyCondition = (): QueryNode => ({
     type: 'condition',
@@ -210,7 +208,6 @@ export const QueryBuilderComponent = ({
                   updateNode(path, { type: 'condition', condition: updatedCondition })
                 }
                 onFieldSearch={onFieldSearch}
-                isSearchingFields={isSearchingFields}
               />
             </div>
 

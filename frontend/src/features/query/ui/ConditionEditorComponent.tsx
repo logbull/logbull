@@ -11,8 +11,7 @@ interface Props {
   fields: QueryableField[];
   condition?: ConditionNode;
   onChange: (condition: ConditionNode) => void;
-  onFieldSearch?: (searchTerm?: string) => void;
-  isSearchingFields?: boolean;
+  onFieldSearch?: (searchTerm?: string) => Promise<QueryableField[]>;
 }
 
 export const ConditionEditorComponent = ({
@@ -20,13 +19,45 @@ export const ConditionEditorComponent = ({
   condition,
   onChange,
   onFieldSearch,
-  isSearchingFields,
 }: Props): React.JSX.Element => {
   // States
   const [arrayValues, setArrayValues] = useState<string[]>([]);
   const [inputValue, setInputValue] = useState('');
+  const [localFields, setLocalFields] = useState<QueryableField[]>(fields);
+  const [isLocalSearching, setIsLocalSearching] = useState(false);
+  const [searchTimeout, setSearchTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   // Functions
+  const debouncedSearchFields = async (searchTerm?: string) => {
+    // Clear existing timeout
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+
+    // Set loading state immediately
+    setIsLocalSearching(true);
+
+    // Create new timeout
+    const timeoutId = setTimeout(async () => {
+      if (onFieldSearch && searchTerm && searchTerm.length > 2) {
+        try {
+          const searchResults = await onFieldSearch(searchTerm);
+          setLocalFields(searchResults);
+        } catch (error) {
+          console.error('Field search failed:', error);
+          // Fallback to original fields if search fails
+          setLocalFields(fields);
+        }
+      } else {
+        // Reset to original fields if no search term or search term too short
+        setLocalFields(fields);
+      }
+      setIsLocalSearching(false);
+    }, 250);
+
+    setSearchTimeout(timeoutId);
+  };
+
   const getOrCreateField = (fieldName: string): QueryableField => {
     const existingField = fields.find((f) => f.name === fieldName);
     if (existingField) {
@@ -256,7 +287,7 @@ export const ConditionEditorComponent = ({
   };
 
   const fieldOptions = (() => {
-    const options = fields.map((field) => ({
+    const options = localFields.map((field) => ({
       value: field.name,
       label: (
         <div className="flex items-center justify-between">
@@ -294,6 +325,20 @@ export const ConditionEditorComponent = ({
     }
   }, [currentOperator, condition?.value, arrayValues.length]);
 
+  // Update local fields when parent fields change
+  useEffect(() => {
+    setLocalFields(fields);
+  }, [fields]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
+    };
+  }, [searchTimeout]);
+
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-12 items-center gap-2">
@@ -304,13 +349,7 @@ export const ConditionEditorComponent = ({
             <AutoComplete
               value={condition?.field || ''}
               onChange={handleFieldChange}
-              onSearch={(searchText) => {
-                // Trigger search for field discovery with proper debouncing
-                // Only search for terms longer than 2 characters to avoid excessive API calls
-                if (searchText && searchText.length > 2 && onFieldSearch) {
-                  onFieldSearch(searchText);
-                }
-              }}
+              onSearch={debouncedSearchFields}
               options={fieldOptions}
               placeholder="Type or select field name"
               size="small"
@@ -320,7 +359,7 @@ export const ConditionEditorComponent = ({
               notFoundContent={null}
               filterOption={false}
             />
-            {isSearchingFields && (
+            {isLocalSearching && (
               <div className="absolute top-1/2 right-2 -translate-y-1/2">
                 <Spin indicator={<LoadingOutlined spin style={{ fontSize: 14 }} />} />
               </div>
@@ -363,7 +402,8 @@ export const ConditionEditorComponent = ({
       {/* Field info */}
       <div className="flex items-center justify-between text-xs text-gray-500">
         <div>
-          <span className="font-medium">{currentField?.type}</span> field
+          <span className="font-medium">{currentField?.type}</span> field{' '}
+          {currentField?.type === 'string' ? '(case-sensitive)' : ''}
         </div>
       </div>
     </div>

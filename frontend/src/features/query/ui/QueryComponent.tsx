@@ -1,6 +1,6 @@
 import { LoadingOutlined, PlayCircleOutlined } from '@ant-design/icons';
 import { App, Button, Divider, Spin, Switch } from 'antd';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import {
   type GetQueryableFieldsRequest,
@@ -59,7 +59,6 @@ export const QueryComponentComponent = ({ projectId, contentHeight }: Props): Re
   // States
   const [isShowHowToSendLogsFromCode, setIsShowHowToSendLogsFromCode] = useState(false);
   const [queryableFields, setQueryableFields] = useState<QueryableField[]>([]);
-  const [isSearchingFields, setIsSearchingFields] = useState(false);
   const [currentQuery, setCurrentQuery] = useState<QueryNode | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [isExecuting, setIsExecuting] = useState(false);
@@ -80,7 +79,6 @@ export const QueryComponentComponent = ({ projectId, contentHeight }: Props): Re
   } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const queryBuilderRef = useRef<HTMLDivElement>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Functions
   const { message } = App.useApp();
@@ -114,37 +112,31 @@ export const QueryComponentComponent = ({ projectId, contentHeight }: Props): Re
     return null;
   };
 
-  const loadQueryableFields = async (searchTerm?: string, isSearch = false) => {
-    if (isSearch) {
-      setIsSearchingFields(true);
-    }
-
+  const loadQueryableFields = async () => {
     try {
-      const request: GetQueryableFieldsRequest | undefined = searchTerm
-        ? { query: searchTerm }
-        : undefined;
-      const response = await queryApi.getQueryableFields(projectId, request);
+      const response = await queryApi.getQueryableFields(projectId);
       setQueryableFields(response.fields);
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to load queryable fields';
       message.error(errorMessage);
-    } finally {
-      if (isSearch) {
-        setIsSearchingFields(false);
-      }
     }
   };
 
-  const debouncedLoadFields = useCallback(
-    (searchTerm?: string) => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      timeoutRef.current = setTimeout(() => loadQueryableFields(searchTerm, true), 250);
-    },
-    [projectId],
-  );
+  const searchQueryableFields = async (searchTerm?: string): Promise<QueryableField[]> => {
+    try {
+      const request: GetQueryableFieldsRequest | undefined = searchTerm
+        ? { query: searchTerm }
+        : undefined;
+      const response = await queryApi.getQueryableFields(projectId, request);
+      return response.fields;
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to search queryable fields';
+      message.error(errorMessage);
+      return [];
+    }
+  };
 
   // Helper function to check if operator needs value input
   const operatorNeedsValue = (operator: string): boolean => {
@@ -277,7 +269,10 @@ export const QueryComponentComponent = ({ projectId, contentHeight }: Props): Re
 
       if (!isLoadMore) {
         const queryType = currentQuery ? 'matching your query' : '(showing all logs)';
-        message.success(`Found ${response.total} logs ${queryType} (${response.executedIn})`);
+        const executedInMs = Math.round(parseFloat(response.executedIn));
+        message.success(
+          `Found ${response.total} logs ${queryType} (${executedInMs.toLocaleString()} ms)`,
+        );
         setHasSearched(true);
       }
     } catch (error: unknown) {
@@ -418,8 +413,7 @@ export const QueryComponentComponent = ({ projectId, contentHeight }: Props): Re
               setCurrentQuery(query);
               setHasSearched(false);
             }}
-            onFieldSearch={debouncedLoadFields}
-            isSearchingFields={isSearchingFields}
+            onFieldSearch={searchQueryableFields}
           />
 
           <Divider />
