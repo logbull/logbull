@@ -105,6 +105,10 @@ func (s *LogReceivingService) processLogItems(
 
 		totalBatchSize += logSize
 
+		if logRequest.Level == "warning" {
+			logRequest.Level = logs_core.LogLevelWarn
+		}
+
 		if err := s.validateLogItemWithSize(&logRequest, project, logSize); err != nil {
 			message := err.Error()
 			if validationErr, ok := err.(*logs_core.ValidationError); ok {
