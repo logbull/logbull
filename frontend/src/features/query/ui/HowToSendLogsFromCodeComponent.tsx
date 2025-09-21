@@ -6,6 +6,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 import { type Project, projectApi } from '../../../entity/projects';
+import { copyToClipboard } from '../../../shared/lib';
 
 interface Props {
   projectId: string;
@@ -26,14 +27,16 @@ export const HowToSendLogsFromCodeComponent = ({
     setProject(project);
   };
 
-  const copyToClipboard = async (text: string, type: string) => {
+  const handleCopyToClipboard = async (text: string, type: string) => {
     setCopyingStates((prev) => ({ ...prev, [type]: true }));
 
     try {
-      await navigator.clipboard.writeText(text);
-      message.success(`${type} code copied to clipboard!`);
-    } catch {
-      message.error('Failed to copy code');
+      const success = await copyToClipboard(text);
+      if (success) {
+        message.success(`${type} code copied to clipboard!`);
+      } else {
+        message.error('Failed to copy code');
+      }
     } finally {
       // Keep the loading state for a brief moment to show feedback
       setTimeout(() => {
@@ -48,10 +51,13 @@ export const HowToSendLogsFromCodeComponent = ({
   }, [projectId]);
 
   // Calculated values
-  const apiKeyHeader = project?.isApiKeyRequired ? '-H "X-API-Key: YOUR_API_KEY_HERE" ' : '';
   const baseUrl = window.origin;
+  const apiKeyLine = project?.isApiKeyRequired
+    ? `  -H "X-API-Key: YOUR_API_KEY_HERE" \\
+`
+    : '';
   const curlExample = `curl -X POST "${baseUrl}/api/v1/logs/receiving/${projectId}" \\
-  ${apiKeyHeader}-H "Content-Type: application/json" \\
+${apiKeyLine}  -H "Content-Type: application/json" \\
   -d '{
     "logs": [
       {
@@ -82,7 +88,7 @@ export const HowToSendLogsFromCodeComponent = ({
               size="small"
               icon={<CopyOutlined />}
               loading={copyingStates['cURL']}
-              onClick={() => copyToClipboard(curlExample, 'cURL')}
+              onClick={() => handleCopyToClipboard(curlExample, 'cURL')}
               style={{
                 position: 'absolute',
                 top: 8,

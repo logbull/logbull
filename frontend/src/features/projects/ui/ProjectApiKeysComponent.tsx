@@ -24,6 +24,7 @@ import type { Project } from '../../../entity/projects/model/Project';
 import type { UserProfile } from '../../../entity/users';
 import { ProjectRole } from '../../../entity/users/model/ProjectRole';
 import { UserRole } from '../../../entity/users/model/UserRole';
+import { copyToClipboard } from '../../../shared/lib';
 
 interface Props {
   contentHeight: number;
@@ -550,10 +551,16 @@ export function ProjectApiKeysComponent({ contentHeight, projectResponse, user }
                         <Button
                           type="primary"
                           icon={<CopyOutlined />}
-                          onClick={() => {
+                          onClick={async () => {
                             if (createdApiKey.token) {
-                              navigator.clipboard.writeText(createdApiKey.token);
-                              message.success('API token copied to clipboard!');
+                              const success = await copyToClipboard(createdApiKey.token);
+                              if (success) {
+                                message.success('API token copied to clipboard!');
+                              } else {
+                                message.error(
+                                  'Failed to copy token to clipboard. Please select and copy the token manually.',
+                                );
+                              }
                             }
                           }}
                           className="ml-3 border-emerald-600 bg-emerald-600 hover:border-emerald-700 hover:bg-emerald-700"
