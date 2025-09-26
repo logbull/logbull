@@ -344,7 +344,10 @@ export const QueryComponentComponent = ({ projectId, contentHeight }: Props): Re
     if (!isInitialLoad && queryableFields.length > 0) {
       // Small delay to ensure time range picker is ready
       const timer = setTimeout(() => {
-        executeQuery(false);
+        // Only execute if we can get a current time range
+        if (timeRangeRef.current && timeRangeRef.current()) {
+          executeQuery(false);
+        }
       }, 100);
 
       return () => clearTimeout(timer);
