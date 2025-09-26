@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"strings"
+	"time"
 
 	api_keys "logbull/internal/features/api_keys"
 	logs_core "logbull/internal/features/logs/core"
@@ -338,6 +339,10 @@ func (s *LogReceivingService) validateLogItemWithSize(
 		}
 	}
 
+	if err := s.validateTimestamp(entry.Timestamp); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -404,4 +409,23 @@ func (s *LogReceivingService) prettyFormatIfMessageJSON(message string) string {
 	}
 
 	return string(prettyJSON)
+}
+
+func (s *LogReceivingService) validateTimestamp(timestamp any) error {
+	if timestamp == nil {
+		return nil
+	}
+
+	parsedTimestamp := time_parser.ParseTimestamp(timestamp)
+	currentTime := time.Now().UTC()
+
+	if parsedTimestamp.After(currentTime) {
+		return &logs_core.ValidationError{
+			Code:    logs_core.ErrorFutureTimestamp,
+			Message: "timestamp cannot be in the future",
+			Field:   "timestamp",
+		}
+	}
+
+	return nil
 }

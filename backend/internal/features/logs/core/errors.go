@@ -23,6 +23,7 @@ const (
 	ErrorProjectQuotaExceeded = "PROJECT_QUOTA_EXCEEDED"
 	ErrorBatchTooLarge        = "BATCH_TOO_LARGE"
 	ErrorMessageEmpty         = "MESSAGE_EMPTY"
+	ErrorFutureTimestamp      = "FUTURE_TIMESTAMP"
 )
 
 // Error codes for log querying

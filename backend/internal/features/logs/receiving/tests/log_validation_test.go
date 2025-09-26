@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	logs_core "logbull/internal/features/logs/core"
 	logs_receiving "logbull/internal/features/logs/receiving"
@@ -183,6 +184,32 @@ func Test_SubmitLogs_WithCustomFields_LogsAccepted(t *testing.T) {
 	assert.Equal(t, 1, response.Accepted)
 	assert.Equal(t, 0, response.Rejected)
 	assert.Empty(t, response.Errors)
+}
+
+func Test_SubmitLogs_WithFutureTimestamp_LogRejected(t *testing.T) {
+	testData := setupValidationTest("Future Timestamp Test")
+
+	futureTime := time.Now().UTC().Add(1 * time.Hour)
+	futureTimestampLogItem := logs_receiving.LogItemRequestDTO{
+		Level:     logs_core.LogLevelInfo,
+		Message:   fmt.Sprintf("Test future timestamp log %s", testData.UniqueID),
+		Timestamp: futureTime.Format(time.RFC3339),
+		Fields: map[string]any{
+			"test_id": testData.UniqueID,
+		},
+	}
+
+	response := submitLogsForValidation(
+		t,
+		testData.Router,
+		testData.Project.ID,
+		[]logs_receiving.LogItemRequestDTO{futureTimestampLogItem},
+	)
+
+	assert.Equal(t, 0, response.Accepted)
+	assert.Equal(t, 1, response.Rejected)
+	assert.Len(t, response.Errors, 1)
+	assert.Contains(t, response.Errors[0].Message, "FUTURE_TIMESTAMP")
 }
 
 type ValidationTestData struct {
