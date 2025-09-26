@@ -884,6 +884,8 @@ func Test_ExecuteQueryForProject_WithGreaterOrEqualOperator_SystemField_ReturnsM
 	// Verify all returned logs have timestamps >= boundary (including exact match)
 	foundPositions := make(map[string]bool)
 	for i, log := range result.Logs {
+		t.Logf("Log %d timestamp: %s", i, log.Timestamp)
+		t.Logf("Boundary time ->: %s", boundaryTime)
 		assert.True(t, log.Timestamp.After(boundaryTime) || log.Timestamp.Equal(boundaryTime),
 			"Log %d timestamp should be >= boundary", i)
 		position := log.Fields["position"].(string)
