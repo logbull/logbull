@@ -17,7 +17,7 @@ import (
 
 // Fields we treat as "system"
 var systemFields = map[string]bool{
-	"@timestamp":   true,
+	"timestamp":    true,
 	"project_id":   true,
 	"id":           true,
 	"level":        true,
@@ -67,7 +67,7 @@ func (repository *LogCoreRepository) StoreLogsBatch(entries map[uuid.UUID][]*Log
 			bulkRequestBuilder.WriteByte('\n')
 
 			document := map[string]any{
-				"@timestamp": logItem.Timestamp.UTC().Format(time.RFC3339Nano),
+				"timestamp":  logItem.Timestamp.Truncate(time.Microsecond).UnixMicro(),
 				"project_id": projectID.String(),
 				"id":         logItem.ID.String(),
 				"level":      string(logItem.Level),
@@ -206,11 +206,12 @@ func (repository *LogCoreRepository) ExecuteQueryForProject(
 			Message:  asString(source["message"]),
 			ClientIP: asString(source["client_ip"]),
 		}
-		if timestampStr, exists := source["@timestamp"].(string); exists {
-			if parsedTime, err := time.Parse(time.RFC3339Nano, timestampStr); err == nil {
-				logItemDTO.Timestamp = parsedTime.UTC()
+		if timestampMicros, exists := source["timestamp"]; exists {
+			if micros, ok := timestampMicros.(float64); ok {
+				logItemDTO.Timestamp = time.UnixMicro(int64(micros)).UTC().Truncate(time.Microsecond)
 			}
 		}
+
 		if createdAtStr, exists := source["created_at"].(string); exists {
 			if parsedTime, err := time.Parse(time.RFC3339Nano, createdAtStr); err == nil {
 				logItemDTO.CreatedAt = parsedTime.UTC()
@@ -260,7 +261,7 @@ func (repository *LogCoreRepository) ExecuteQueryForProject(
 func (repository *LogCoreRepository) DiscoverFields(projectID uuid.UUID) ([]string, error) {
 	discoveryQuery := map[string]any{
 		"size":    50,
-		"sort":    []any{map[string]any{"@timestamp": map[string]any{"order": "desc"}}},
+		"sort":    []any{map[string]any{"timestamp": map[string]any{"order": "desc"}}},
 		"_source": true,
 		"query": map[string]any{"bool": map[string]any{
 			"filter": []any{
@@ -383,7 +384,7 @@ func (repository *LogCoreRepository) DeleteOldLogs(projectID uuid.UUID, olderTha
 					map[string]any{"term": map[string]any{"project_id.keyword": projectID.String()}},
 					map[string]any{
 						"range": map[string]any{
-							"@timestamp": map[string]any{"lt": olderThan.UTC().Format(time.RFC3339Nano)},
+							"timestamp": map[string]any{"lt": olderThan.UTC().Truncate(time.Microsecond).UnixMicro()},
 						},
 					},
 				},
@@ -409,10 +410,10 @@ func (repository *LogCoreRepository) GetProjectLogStats(projectID uuid.UUID) (*P
 				"value_count": map[string]any{"field": "_id"},
 			},
 			"oldest_log": map[string]any{
-				"min": map[string]any{"field": "@timestamp"},
+				"min": map[string]any{"field": "timestamp"},
 			},
 			"newest_log": map[string]any{
-				"max": map[string]any{"field": "@timestamp"},
+				"max": map[string]any{"field": "timestamp"},
 			},
 			"total_size_bytes": map[string]any{
 				"sum": map[string]any{
@@ -489,8 +490,8 @@ func (repository *LogCoreRepository) GetProjectLogStats(projectID uuid.UUID) (*P
 			stats.OldestLogTime = oldestTime.UTC()
 		}
 	} else if statsSearchResponse.Aggregations.OldestLog.Value != 0 {
-		// Fallback to parsing Unix timestamp in milliseconds from Value field
-		stats.OldestLogTime = time.UnixMilli(int64(statsSearchResponse.Aggregations.OldestLog.Value)).UTC()
+		// Fallback to parsing Unix timestamp in microseconds from Value field
+		stats.OldestLogTime = time.UnixMicro(int64(statsSearchResponse.Aggregations.OldestLog.Value)).UTC().Truncate(time.Microsecond)
 	}
 
 	// Parse newest timestamp if available
@@ -499,8 +500,8 @@ func (repository *LogCoreRepository) GetProjectLogStats(projectID uuid.UUID) (*P
 			stats.NewestLogTime = newestTime.UTC()
 		}
 	} else if statsSearchResponse.Aggregations.NewestLog.Value != 0 {
-		// Fallback to parsing Unix timestamp in milliseconds from Value field
-		stats.NewestLogTime = time.UnixMilli(int64(statsSearchResponse.Aggregations.NewestLog.Value)).UTC()
+		// Fallback to parsing Unix timestamp in microseconds from Value field
+		stats.NewestLogTime = time.UnixMicro(int64(statsSearchResponse.Aggregations.NewestLog.Value)).UTC().Truncate(time.Microsecond)
 	}
 
 	return stats, nil

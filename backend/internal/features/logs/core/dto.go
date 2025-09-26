@@ -8,7 +8,7 @@ type LogQueryRequestDTO struct {
 	TimeRange  *TimeRangeDTO `json:"timeRange,omitempty"`
 	Limit      int           `json:"limit,omitempty"`
 	Offset     int           `json:"offset,omitempty"`
-	SortBy     string        `json:"sortBy,omitempty"`    // always "@timestamp" for now
+	SortBy     string        `json:"sortBy,omitempty"`    // always "timestamp" for now
 	SortOrder  string        `json:"sortOrder,omitempty"` // "asc" or "desc"
 	TrackTotal bool          `json:"trackTotal,omitempty"`
 }

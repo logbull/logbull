@@ -3,6 +3,7 @@ package logs_core
 import (
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,11 +27,11 @@ func (builder *QueryBuilder) BuildSearchBody(projectID uuid.UUID, request *LogQu
 		timeRange := map[string]any{}
 
 		if request.TimeRange.From != nil {
-			timeRange["gte"] = request.TimeRange.From.Format(time.RFC3339Nano)
+			timeRange["gte"] = timestampToMicros(*request.TimeRange.From)
 		}
 
 		if request.TimeRange.To != nil {
-			timeRange["lte"] = request.TimeRange.To.Format(time.RFC3339Nano)
+			timeRange["lte"] = timestampToMicros(*request.TimeRange.To)
 		}
 
 		filterSlice, ok := boolQuery["filter"].([]any)
@@ -40,7 +41,7 @@ func (builder *QueryBuilder) BuildSearchBody(projectID uuid.UUID, request *LogQu
 
 		boolQuery["filter"] = append(filterSlice, map[string]any{
 			"range": map[string]any{
-				"@timestamp": timeRange,
+				"timestamp": timeRange,
 			},
 		})
 	}
@@ -68,8 +69,10 @@ func (builder *QueryBuilder) BuildSearchBody(projectID uuid.UUID, request *LogQu
 	if strings.ToLower(request.SortOrder) == "asc" {
 		sortOrder = "asc"
 	}
+
+	// Use numeric timestamp for precise microsecond sorting
 	searchBody["sort"] = []any{
-		map[string]any{"@timestamp": map[string]any{"order": sortOrder}},
+		map[string]any{"timestamp": map[string]any{"order": sortOrder}},
 	}
 
 	// Pagination
@@ -140,13 +143,32 @@ func (builder *QueryBuilder) buildConditionNode(condition *ConditionNode) map[st
 	switch condition.Operator {
 	case ConditionOperatorEquals:
 		if isSystemField {
-			return term(builder.getSystemFieldName(fieldName), condition.Value)
+			value := condition.Value
+			// Convert timestamp strings to microseconds for consistency with storage
+			if fieldName == "timestamp" {
+				if stringValue, ok := value.(string); ok {
+					if parsedTime, err := time.Parse(time.RFC3339Nano, stringValue); err == nil {
+						value = timestampToMicros(parsedTime)
+					}
+				}
+			}
+
+			return term(builder.getSystemFieldName(fieldName), value)
 		}
 		return term("attrs_tokens.keyword", fmt.Sprintf("%s=%v", fieldName, condition.Value))
 
 	case ConditionOperatorNotEquals:
 		if isSystemField {
-			return mustNot(term(builder.getSystemFieldName(fieldName), condition.Value))
+			value := condition.Value
+			// Convert timestamp strings to microseconds for consistency with storage
+			if fieldName == "timestamp" {
+				if stringValue, ok := value.(string); ok {
+					if parsedTime, err := time.Parse(time.RFC3339Nano, stringValue); err == nil {
+						value = timestampToMicros(parsedTime)
+					}
+				}
+			}
+			return mustNot(term(builder.getSystemFieldName(fieldName), value))
 		}
 		return mustNot(term("attrs_tokens.keyword", fmt.Sprintf("%s=%v", fieldName, condition.Value)))
 
@@ -157,6 +179,18 @@ func (builder *QueryBuilder) buildConditionNode(condition *ConditionNode) map[st
 			return matchNone()
 		}
 		if isSystemField {
+			// Convert timestamp strings to microseconds for consistency with storage
+			if fieldName == "timestamp" {
+				microValues := make([]string, 0, len(values))
+				for _, value := range values {
+					if parsedTime, err := time.Parse(time.RFC3339Nano, value); err == nil {
+						microValues = append(microValues, strconv.FormatInt(timestampToMicros(parsedTime), 10))
+					} else {
+						microValues = append(microValues, value) // Keep original if parsing fails
+					}
+				}
+				return terms(builder.getSystemFieldName(fieldName), microValues)
+			}
 			return terms(builder.getSystemFieldName(fieldName), values)
 		}
 		// map to tokens "key=value"
@@ -256,7 +290,22 @@ func rangeQuery(field string, operator ConditionOperator, value string) map[stri
 	case ConditionOperatorLessOrEqual:
 		rangeKey = "lte"
 	}
-	return map[string]any{"range": map[string]any{field: map[string]any{rangeKey: value}}}
+
+	// Convert timestamp strings to microseconds for consistency with storage
+	queryValue := value
+	if field == "timestamp" {
+		if parsedTime, err := time.Parse(time.RFC3339Nano, value); err == nil {
+			queryValue = strconv.FormatInt(timestampToMicros(parsedTime), 10)
+		}
+	}
+
+	return map[string]any{"range": map[string]any{field: map[string]any{rangeKey: queryValue}}}
+}
+
+// timestampToMicros converts a time to microseconds, ensuring consistent precision
+func timestampToMicros(t time.Time) int64 {
+	// Truncate to microseconds to ensure consistency with storage
+	return t.Truncate(time.Microsecond).UnixMicro()
 }
 
 func asStringSlice(value any) []string {
@@ -276,7 +325,7 @@ func asStringSlice(value any) []string {
 
 func (builder *QueryBuilder) isSystemField(field string) bool {
 	switch field {
-	case "@timestamp", "timestamp", "project_id", "id", "level", "client_ip", "created_at", "message":
+	case "timestamp", "project_id", "id", "level", "client_ip", "created_at", "message":
 		return true
 	default:
 		return false

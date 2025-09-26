@@ -1,6 +1,7 @@
 package logs_core_tests
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -699,7 +700,7 @@ func Test_ExecuteQueryForProject_WithExistsOperator_SystemField_ReturnsAllLogs(t
 	StoreTestLogsAndFlush(t, repository, allEntries)
 
 	// Test EXISTS on system fields that should always exist
-	systemFields := []string{"message", "level", "@timestamp"}
+	systemFields := []string{"message", "level", "timestamp"}
 
 	for _, fieldName := range systemFields {
 		existsQuery := &logs_core.LogQueryRequestDTO{
@@ -725,7 +726,7 @@ func Test_ExecuteQueryForProject_WithExistsOperator_SystemField_ReturnsAllLogs(t
 				assert.NotEmpty(t, log.Message, "Log %d should have non-empty message", i)
 			case "level":
 				assert.NotEmpty(t, log.Level, "Log %d should have non-empty level", i)
-			case "@timestamp":
+			case "timestamp":
 				assert.False(t, log.Timestamp.IsZero(), "Log %d should have valid timestamp", i)
 			}
 		}
@@ -749,7 +750,7 @@ func Test_ExecuteQueryForProject_WithNotExistsOperator_SystemField_ReturnsNoLogs
 	StoreTestLogsAndFlush(t, repository, testLogs)
 
 	// Test NOT EXISTS on system fields - should return no results since all logs have system fields
-	systemFields := []string{"message", "level", "@timestamp", "id"}
+	systemFields := []string{"message", "level", "timestamp", "id"}
 
 	for _, fieldName := range systemFields {
 		notExistsQuery := &logs_core.LogQueryRequestDTO{
@@ -802,13 +803,13 @@ func Test_ExecuteQueryForProject_WithGreaterThanOperator_SystemField_ReturnsMatc
 	allEntries = MergeLogEntries(allEntries, newestLog)
 	StoreTestLogsAndFlush(t, repository, allEntries)
 
-	// Test greater than operator on @timestamp
+	// Test greater than operator on timestamp
 	thresholdTime := baseTime.Add(-1 * time.Hour)
 	greaterThanQuery := &logs_core.LogQueryRequestDTO{
 		Query: &logs_core.QueryNode{
 			Type: logs_core.QueryNodeTypeCondition,
 			Condition: &logs_core.ConditionNode{
-				Field:    "@timestamp",
+				Field:    "timestamp",
 				Operator: logs_core.ConditionOperatorGreaterThan,
 				Value:    thresholdTime.Format(time.RFC3339Nano),
 			},
@@ -840,6 +841,8 @@ func Test_ExecuteQueryForProject_WithGreaterOrEqualOperator_SystemField_ReturnsM
 	// Create logs with precise timestamps for boundary testing
 	boundaryTime := baseTime.Add(-1 * time.Hour)
 
+	fmt.Println("boundaryTime", boundaryTime)
+
 	beforeBoundaryLog := CreateTestLogEntriesWithUniqueFields(projectID, boundaryTime.Add(-1*time.Minute),
 		"Before boundary log", map[string]any{
 			"test_session": uniqueTestSession,
@@ -862,12 +865,12 @@ func Test_ExecuteQueryForProject_WithGreaterOrEqualOperator_SystemField_ReturnsM
 	allEntries = MergeLogEntries(allEntries, afterBoundaryLog)
 	StoreTestLogsAndFlush(t, repository, allEntries)
 
-	// Test greater than or equal operator on @timestamp
+	// Test greater than or equal operator on timestamp
 	greaterOrEqualQuery := &logs_core.LogQueryRequestDTO{
 		Query: &logs_core.QueryNode{
 			Type: logs_core.QueryNodeTypeCondition,
 			Condition: &logs_core.ConditionNode{
-				Field:    "@timestamp",
+				Field:    "timestamp",
 				Operator: logs_core.ConditionOperatorGreaterOrEqual,
 				Value:    boundaryTime.Format(time.RFC3339Nano),
 			},
@@ -924,13 +927,13 @@ func Test_ExecuteQueryForProject_WithLessThanOperator_SystemField_ReturnsMatchin
 	allEntries = MergeLogEntries(allEntries, recentLog)
 	StoreTestLogsAndFlush(t, repository, allEntries)
 
-	// Test less than operator on @timestamp
+	// Test less than operator on timestamp
 	thresholdTime := baseTime.Add(-1 * time.Hour)
 	lessThanQuery := &logs_core.LogQueryRequestDTO{
 		Query: &logs_core.QueryNode{
 			Type: logs_core.QueryNodeTypeCondition,
 			Condition: &logs_core.ConditionNode{
-				Field:    "@timestamp",
+				Field:    "timestamp",
 				Operator: logs_core.ConditionOperatorLessThan,
 				Value:    thresholdTime.Format(time.RFC3339Nano),
 			},
@@ -984,12 +987,12 @@ func Test_ExecuteQueryForProject_WithLessOrEqualOperator_SystemField_ReturnsMatc
 	allEntries = MergeLogEntries(allEntries, afterBoundaryLog)
 	StoreTestLogsAndFlush(t, repository, allEntries)
 
-	// Test less than or equal operator on @timestamp
+	// Test less than or equal operator on timestamp
 	lessOrEqualQuery := &logs_core.LogQueryRequestDTO{
 		Query: &logs_core.QueryNode{
 			Type: logs_core.QueryNodeTypeCondition,
 			Condition: &logs_core.ConditionNode{
-				Field:    "@timestamp",
+				Field:    "timestamp",
 				Operator: logs_core.ConditionOperatorLessOrEqual,
 				Value:    boundaryTime.Format(time.RFC3339Nano),
 			},
@@ -1293,7 +1296,7 @@ func Test_ExecuteQueryForProject_WithExactBoundaryTimestamp_ReturnsMatchingLogs(
 		Query: &logs_core.QueryNode{
 			Type: logs_core.QueryNodeTypeCondition,
 			Condition: &logs_core.ConditionNode{
-				Field:    "@timestamp",
+				Field:    "timestamp",
 				Operator: logs_core.ConditionOperatorGreaterOrEqual,
 				Value:    boundaryTime.Format(time.RFC3339Nano),
 			},
@@ -1319,7 +1322,7 @@ func Test_ExecuteQueryForProject_WithExactBoundaryTimestamp_ReturnsMatchingLogs(
 		Query: &logs_core.QueryNode{
 			Type: logs_core.QueryNodeTypeCondition,
 			Condition: &logs_core.ConditionNode{
-				Field:    "@timestamp",
+				Field:    "timestamp",
 				Operator: logs_core.ConditionOperatorLessOrEqual,
 				Value:    boundaryTime.Format(time.RFC3339Nano),
 			},
@@ -1345,7 +1348,7 @@ func Test_ExecuteQueryForProject_WithExactBoundaryTimestamp_ReturnsMatchingLogs(
 		Query: &logs_core.QueryNode{
 			Type: logs_core.QueryNodeTypeCondition,
 			Condition: &logs_core.ConditionNode{
-				Field:    "@timestamp",
+				Field:    "timestamp",
 				Operator: logs_core.ConditionOperatorEquals,
 				Value:    boundaryTime.Format(time.RFC3339Nano),
 			},
@@ -1355,7 +1358,7 @@ func Test_ExecuteQueryForProject_WithExactBoundaryTimestamp_ReturnsMatchingLogs(
 
 	equalsResult, err := repository.ExecuteQueryForProject(projectID, equalsQuery)
 	assert.NoError(t, err)
-	// Note: Equals on @timestamp might not work as expected with OpenSearch due to precision
+	// Note: Equals on timestamp might not work as expected with OpenSearch due to precision
 	// This test documents the behavior rather than asserting a specific result
 	t.Logf("Equals query on exact timestamp returned %d results", equalsResult.Total)
 }
