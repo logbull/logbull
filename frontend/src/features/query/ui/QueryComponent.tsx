@@ -310,30 +310,46 @@ export const QueryComponentComponent = ({ projectId, contentHeight }: Props): Re
 
   // useEffect hooks
   useEffect(() => {
-    loadQueryableFields();
+    const initializeProject = async () => {
+      await loadQueryableFields();
 
-    // Load saved query for this project
-    const savedQuery = loadQueryFromStorage();
-    if (savedQuery) {
-      setCurrentQuery(savedQuery.query);
-      setSortOrder(savedQuery.sortOrder);
-    } else {
-      // Reset to defaults for new project
-      setCurrentQuery(null);
-      setSortOrder('desc');
-    }
+      // Load saved query for this project
+      const savedQuery = loadQueryFromStorage();
+      if (savedQuery) {
+        setCurrentQuery(savedQuery.query);
+        setSortOrder(savedQuery.sortOrder);
+      } else {
+        // Reset to defaults for new project
+        setCurrentQuery(null);
+        setSortOrder('desc');
+      }
 
-    // Reset other states when switching projects
-    setQueryResults([]);
-    setTotalResults(0);
-    setHasExecuted(false);
-    setHasMoreResults(false);
-    setFrozenTimeRange(null);
-    setHasSearched(false);
+      // Reset other states when switching projects
+      setQueryResults([]);
+      setTotalResults(0);
+      setHasExecuted(false);
+      setHasMoreResults(false);
+      setFrozenTimeRange(null);
+      setHasSearched(false);
 
-    // Mark initial load as complete
-    setIsInitialLoad(false);
+      // Mark initial load as complete
+      setIsInitialLoad(false);
+    };
+
+    initializeProject();
   }, [projectId]);
+
+  // Auto-execute query when project is initialized
+  useEffect(() => {
+    if (!isInitialLoad && queryableFields.length > 0) {
+      // Small delay to ensure time range picker is ready
+      const timer = setTimeout(() => {
+        executeQuery(false);
+      }, 100);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isInitialLoad, queryableFields.length]);
 
   // Save query and sort order whenever they change (but not on initial load)
   useEffect(() => {
