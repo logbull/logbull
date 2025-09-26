@@ -1,7 +1,6 @@
 package logs_core_tests
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -839,9 +838,8 @@ func Test_ExecuteQueryForProject_WithGreaterOrEqualOperator_SystemField_ReturnsM
 	baseTime := time.Now().UTC()
 
 	// Create logs with precise timestamps for boundary testing
-	boundaryTime := baseTime.Add(-1 * time.Hour)
-
-	fmt.Println("boundaryTime", boundaryTime)
+	// Truncate to microsecond precision to match storage behavior
+	boundaryTime := baseTime.Add(-1 * time.Hour).Truncate(time.Microsecond)
 
 	beforeBoundaryLog := CreateTestLogEntriesWithUniqueFields(projectID, boundaryTime.Add(-1*time.Minute),
 		"Before boundary log", map[string]any{
