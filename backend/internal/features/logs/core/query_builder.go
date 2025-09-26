@@ -27,11 +27,11 @@ func (builder *QueryBuilder) BuildSearchBody(projectID uuid.UUID, request *LogQu
 		timeRange := map[string]any{}
 
 		if request.TimeRange.From != nil {
-			timeRange["gte"] = timestampToMicros(*request.TimeRange.From)
+			timeRange["gte"] = timestampToNanos(*request.TimeRange.From)
 		}
 
 		if request.TimeRange.To != nil {
-			timeRange["lte"] = timestampToMicros(*request.TimeRange.To)
+			timeRange["lte"] = timestampToNanos(*request.TimeRange.To)
 		}
 
 		filterSlice, ok := boolQuery["filter"].([]any)
@@ -144,11 +144,11 @@ func (builder *QueryBuilder) buildConditionNode(condition *ConditionNode) map[st
 	case ConditionOperatorEquals:
 		if isSystemField {
 			value := condition.Value
-			// Convert timestamp strings to microseconds for consistency with storage
+			// Convert timestamp strings to nanoseconds for consistency with storage
 			if fieldName == "timestamp" {
 				if stringValue, ok := value.(string); ok {
 					if parsedTime, err := time.Parse(time.RFC3339Nano, stringValue); err == nil {
-						value = timestampToMicros(parsedTime)
+						value = timestampToNanos(parsedTime)
 					}
 				}
 			}
@@ -160,11 +160,11 @@ func (builder *QueryBuilder) buildConditionNode(condition *ConditionNode) map[st
 	case ConditionOperatorNotEquals:
 		if isSystemField {
 			value := condition.Value
-			// Convert timestamp strings to microseconds for consistency with storage
+			// Convert timestamp strings to nanoseconds for consistency with storage
 			if fieldName == "timestamp" {
 				if stringValue, ok := value.(string); ok {
 					if parsedTime, err := time.Parse(time.RFC3339Nano, stringValue); err == nil {
-						value = timestampToMicros(parsedTime)
+						value = timestampToNanos(parsedTime)
 					}
 				}
 			}
@@ -179,17 +179,17 @@ func (builder *QueryBuilder) buildConditionNode(condition *ConditionNode) map[st
 			return matchNone()
 		}
 		if isSystemField {
-			// Convert timestamp strings to microseconds for consistency with storage
+			// Convert timestamp strings to nanoseconds for consistency with storage
 			if fieldName == "timestamp" {
-				microValues := make([]string, 0, len(values))
+				nanoValues := make([]string, 0, len(values))
 				for _, value := range values {
 					if parsedTime, err := time.Parse(time.RFC3339Nano, value); err == nil {
-						microValues = append(microValues, strconv.FormatInt(timestampToMicros(parsedTime), 10))
+						nanoValues = append(nanoValues, strconv.FormatInt(timestampToNanos(parsedTime), 10))
 					} else {
-						microValues = append(microValues, value) // Keep original if parsing fails
+						nanoValues = append(nanoValues, value) // Keep original if parsing fails
 					}
 				}
-				return terms(builder.getSystemFieldName(fieldName), microValues)
+				return terms(builder.getSystemFieldName(fieldName), nanoValues)
 			}
 			return terms(builder.getSystemFieldName(fieldName), values)
 		}
@@ -291,21 +291,21 @@ func rangeQuery(field string, operator ConditionOperator, value string) map[stri
 		rangeKey = "lte"
 	}
 
-	// Convert timestamp strings to microseconds for consistency with storage
+	// Convert timestamp strings to nanoseconds for consistency with storage
 	queryValue := value
 	if field == "timestamp" {
 		if parsedTime, err := time.Parse(time.RFC3339Nano, value); err == nil {
-			queryValue = strconv.FormatInt(timestampToMicros(parsedTime), 10)
+			queryValue = strconv.FormatInt(timestampToNanos(parsedTime), 10)
 		}
 	}
 
 	return map[string]any{"range": map[string]any{field: map[string]any{rangeKey: queryValue}}}
 }
 
-// timestampToMicros converts a time to microseconds, ensuring consistent precision
-func timestampToMicros(t time.Time) int64 {
-	// Truncate to microseconds to ensure consistency with storage
-	return t.Truncate(time.Microsecond).UnixMicro()
+// timestampToNanos converts a time to nanoseconds, ensuring consistent precision
+func timestampToNanos(t time.Time) int64 {
+	// Use full nanosecond precision
+	return t.UnixNano()
 }
 
 func asStringSlice(value any) []string {

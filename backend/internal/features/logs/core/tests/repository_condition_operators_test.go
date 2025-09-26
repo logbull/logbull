@@ -838,8 +838,8 @@ func Test_ExecuteQueryForProject_WithGreaterOrEqualOperator_SystemField_ReturnsM
 	baseTime := time.Now().UTC()
 
 	// Create logs with precise timestamps for boundary testing
-	// Truncate to microsecond precision to match storage behavior
-	boundaryTime := baseTime.Add(-1 * time.Hour).Truncate(time.Microsecond)
+	// Use full nanosecond precision as stored
+	boundaryTime := baseTime.Add(-1 * time.Hour)
 
 	beforeBoundaryLog := CreateTestLogEntriesWithUniqueFields(projectID, boundaryTime.Add(-1*time.Minute),
 		"Before boundary log", map[string]any{
@@ -961,7 +961,8 @@ func Test_ExecuteQueryForProject_WithLessOrEqualOperator_SystemField_ReturnsMatc
 	baseTime := time.Now().UTC()
 
 	// Create logs with precise timestamps for boundary testing
-	boundaryTime := baseTime.Add(-1 * time.Hour)
+	// Use a rounded boundary time to avoid nanosecond precision issues in comparisons
+	boundaryTime := baseTime.Add(-1 * time.Hour).Truncate(time.Microsecond)
 
 	beforeBoundaryLog := CreateTestLogEntriesWithUniqueFields(projectID, boundaryTime.Add(-1*time.Minute),
 		"Before boundary log", map[string]any{
@@ -1264,7 +1265,8 @@ func Test_ExecuteQueryForProject_WithExactBoundaryTimestamp_ReturnsMatchingLogs(
 	baseTime := time.Now().UTC()
 
 	// Create logs with very precise timestamps for exact boundary testing
-	boundaryTime := baseTime.Add(-1 * time.Hour)
+	// Use a rounded boundary time to avoid nanosecond precision issues in comparisons
+	boundaryTime := baseTime.Add(-1 * time.Hour).Truncate(time.Microsecond)
 
 	// Logs with millisecond precision differences (more realistic for OpenSearch)
 	beforeBoundaryLog := CreateTestLogEntriesWithUniqueFields(projectID, boundaryTime.Add(-1*time.Millisecond),

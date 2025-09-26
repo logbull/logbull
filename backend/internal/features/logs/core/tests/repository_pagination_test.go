@@ -58,7 +58,7 @@ func Test_ExecuteQueryForProject_WithPaginationAndOffset_ReturnsSameTotalCount(t
 	assert.LessOrEqual(t, len(secondPageResult.Logs), 5, "Second page should have at most 5 logs")
 }
 
-func Test_ExecuteQueryForProject_WithMicrosecondPrecision_MaintainsProperDESCOrdering(t *testing.T) {
+func Test_ExecuteQueryForProject_WithNanosecondPrecision_MaintainsProperDESCOrdering(t *testing.T) {
 	t.Parallel()
 	repository := logs_core.GetLogCoreRepository()
 	projectID := uuid.New()
@@ -67,7 +67,7 @@ func Test_ExecuteQueryForProject_WithMicrosecondPrecision_MaintainsProperDESCOrd
 	logCount := 20
 	pageSize := 5
 
-	testLogEntries := createMicrosecondLogEntries(projectID, logCount, baseTime, uniqueTestSession)
+	testLogEntries := createNanosecondLogEntries(projectID, logCount, baseTime, uniqueTestSession)
 	StoreTestLogsAndFlush(t, repository, testLogEntries)
 
 	time.Sleep(1 * time.Second)
@@ -162,7 +162,7 @@ func verifyDescOrderingAcrossPages(t *testing.T, allLogsByPage [][]logs_core.Log
 	}
 }
 
-func createMicrosecondLogEntries(
+func createNanosecondLogEntries(
 	projectID uuid.UUID,
 	logCount int,
 	baseTime time.Time,
@@ -174,12 +174,12 @@ func createMicrosecondLogEntries(
 		uniqueLogID := uuid.New().String()[:8]
 		batchLogEntries := CreateTestLogEntriesWithMessageAndFields(projectID,
 			baseTime.Add(time.Duration(sequenceIndex)*time.Microsecond),
-			"Microsecond test log message",
+			"Nanosecond precision test log message",
 			map[string]any{
 				"unique_id":    uniqueLogID,
 				"test_session": testSessionID,
 				"sequence_num": sequenceIndex,
-				"service":      "microsecond-test",
+				"service":      "nanosecond-test",
 			})
 
 		if len(allBatchEntries) == 0 {

@@ -67,7 +67,7 @@ func (repository *LogCoreRepository) StoreLogsBatch(entries map[uuid.UUID][]*Log
 			bulkRequestBuilder.WriteByte('\n')
 
 			document := map[string]any{
-				"timestamp":  logItem.Timestamp.Truncate(time.Microsecond).UnixMicro(),
+				"timestamp":  logItem.Timestamp.UnixNano(),
 				"project_id": projectID.String(),
 				"id":         logItem.ID.String(),
 				"level":      string(logItem.Level),
@@ -206,9 +206,9 @@ func (repository *LogCoreRepository) ExecuteQueryForProject(
 			Message:  asString(source["message"]),
 			ClientIP: asString(source["client_ip"]),
 		}
-		if timestampMicros, exists := source["timestamp"]; exists {
-			if micros, ok := timestampMicros.(float64); ok {
-				logItemDTO.Timestamp = time.UnixMicro(int64(micros)).UTC().Truncate(time.Microsecond)
+		if timestampNanos, exists := source["timestamp"]; exists {
+			if nanos, ok := timestampNanos.(float64); ok {
+				logItemDTO.Timestamp = time.Unix(0, int64(nanos)).UTC()
 			}
 		}
 
@@ -384,7 +384,7 @@ func (repository *LogCoreRepository) DeleteOldLogs(projectID uuid.UUID, olderTha
 					map[string]any{"term": map[string]any{"project_id.keyword": projectID.String()}},
 					map[string]any{
 						"range": map[string]any{
-							"timestamp": map[string]any{"lt": olderThan.UTC().Truncate(time.Microsecond).UnixMicro()},
+							"timestamp": map[string]any{"lt": olderThan.UTC().UnixNano()},
 						},
 					},
 				},
@@ -490,8 +490,8 @@ func (repository *LogCoreRepository) GetProjectLogStats(projectID uuid.UUID) (*P
 			stats.OldestLogTime = oldestTime.UTC()
 		}
 	} else if statsSearchResponse.Aggregations.OldestLog.Value != 0 {
-		// Fallback to parsing Unix timestamp in microseconds from Value field
-		stats.OldestLogTime = time.UnixMicro(int64(statsSearchResponse.Aggregations.OldestLog.Value)).UTC().Truncate(time.Microsecond)
+		// Fallback to parsing Unix timestamp in nanoseconds from Value field
+		stats.OldestLogTime = time.Unix(0, int64(statsSearchResponse.Aggregations.OldestLog.Value)).UTC()
 	}
 
 	// Parse newest timestamp if available
@@ -500,8 +500,8 @@ func (repository *LogCoreRepository) GetProjectLogStats(projectID uuid.UUID) (*P
 			stats.NewestLogTime = newestTime.UTC()
 		}
 	} else if statsSearchResponse.Aggregations.NewestLog.Value != 0 {
-		// Fallback to parsing Unix timestamp in microseconds from Value field
-		stats.NewestLogTime = time.UnixMicro(int64(statsSearchResponse.Aggregations.NewestLog.Value)).UTC().Truncate(time.Microsecond)
+		// Fallback to parsing Unix timestamp in nanoseconds from Value field
+		stats.NewestLogTime = time.Unix(0, int64(statsSearchResponse.Aggregations.NewestLog.Value)).UTC()
 	}
 
 	return stats, nil
