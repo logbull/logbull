@@ -28,7 +28,7 @@ var logCoreRepository = &LogCoreRepository{
 	baseURL:      strings.TrimRight(fmt.Sprintf("%s:%s", env.OpenSearchURL, env.OpenSearchAPIPort), "/"),
 	indexPattern: "logs-*",
 	indexPrefix:  "logs-",
-	timeout:      10 * time.Second,
+	timeout:      5 * time.Minute,
 	logger:       logger.GetLogger(),
 	queryBuilder: &QueryBuilder{logger.GetLogger()},
 }
