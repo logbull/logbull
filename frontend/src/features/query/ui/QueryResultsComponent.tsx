@@ -1,5 +1,5 @@
 import { LoadingOutlined } from '@ant-design/icons';
-import { Spin } from 'antd';
+import { Checkbox, Spin } from 'antd';
 import dayjs from 'dayjs';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -81,6 +81,7 @@ export const QueryResultsComponent = ({
   // States
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [messageLength, setMessageLength] = useState<number>(getStoredMessageLength());
+  const [showFields, setShowFields] = useState<boolean>(true);
 
   // Refs
   const isLoadingMore = useRef(false);
@@ -279,6 +280,15 @@ export const QueryResultsComponent = ({
                 max="1000"
               />
             </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={showFields}
+                onChange={(e) => setShowFields(e.target.checked)}
+                className="text-xs"
+              >
+                <span className="text-xs font-normal text-gray-500">Show fields</span>
+              </Checkbox>
+            </div>
             <span className="text-xs font-normal text-gray-500">
               {isExecuting && queryResults.length === 0 ? (
                 <Spin indicator={<LoadingOutlined spin />} size="small" />
@@ -306,9 +316,13 @@ export const QueryResultsComponent = ({
             <div className="flex gap-2 border-b border-gray-200 pb-1 text-xs font-medium text-gray-700">
               <div style={{ width: '150px' }}>Timestamp</div>
               <div style={{ width: '85px' }}>Level</div>
-              <div className="flex-1">Message</div>
-              <div style={{ width: '10px' }} />
-              <div className="flex-1">Fields</div>
+              <div className={showFields ? 'flex-1' : 'flex-[2]'}>Message</div>
+              {showFields && (
+                <>
+                  <div style={{ width: '10px' }} />
+                  <div className="flex-1">Fields</div>
+                </>
+              )}
             </div>
 
             {/* Results Rows */}
@@ -337,7 +351,7 @@ export const QueryResultsComponent = ({
                   </div>
                   <div style={{ width: '85px' }}>{renderLogLevel(log.level)}</div>
                   <div
-                    className={`flex-1 font-mono text-xs break-all text-gray-900 ${
+                    className={`${showFields ? 'flex-1' : 'flex-[2]'} font-mono text-xs break-all text-gray-900 ${
                       isExpanded && displayMessage.includes(' ') ? 'whitespace-pre-wrap' : ''
                     }`}
                   >
@@ -346,8 +360,14 @@ export const QueryResultsComponent = ({
                       <span className="ml-1 text-emerald-600 hover:text-emerald-700">(expand)</span>
                     )}
                   </div>
-                  <div style={{ width: '10px' }} />
-                  <div className="flex-1">{renderCustomFields(log, isExpanded, messageLength)}</div>
+                  {showFields && (
+                    <>
+                      <div style={{ width: '10px' }} />
+                      <div className="flex-1">
+                        {renderCustomFields(log, isExpanded, messageLength)}
+                      </div>
+                    </>
+                  )}
                 </div>
               );
             })}
